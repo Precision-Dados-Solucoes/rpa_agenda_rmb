@@ -250,22 +250,22 @@ async def insert_data_to_supabase(df, table_name):
     """
     Insere os dados de um DataFrame do pandas em uma tabela do Supabase.
     """
-    host = os.getenv("SUPABASE_HOST")
-    port = os.getenv("SUPABASE_PORT")
-    database = os.getenv("SUPABASE_DATABASE")
-    user = os.getenv("SUPABASE_USER")
-    password = os.getenv("SUPABASE_PASSWORD")
+    # Credenciais do Supabase com fallback (como no Novajus)
+    host = os.getenv("SUPABASE_HOST", "db.dhfmqumwizrwdbjnbcua.supabase.co")
+    port = os.getenv("SUPABASE_PORT", "5432")
+    database = os.getenv("SUPABASE_DATABASE", "postgres")
+    user = os.getenv("SUPABASE_USER", "postgres")
+    password = os.getenv("SUPABASE_PASSWORD", "**PDS2025@@")
 
-    if not all([host, port, database, user, password]):
-        print("Erro: Credenciais do Supabase não configuradas nas variáveis de ambiente.")
-        print("Por favor, crie um arquivo .env com as variáveis SUPABASE_HOST, SUPABASE_PORT, SUPABASE_DATABASE, SUPABASE_USER, SUPABASE_PASSWORD.")
-        return False
+    print(f"🔗 Conectando ao Supabase: {host}:{port}/{database}")
+    print(f"👤 Usuário: {user}")
+    print(f"🔐 Senha: {'*' * len(password)}")
 
     conn = None
     try:
-        print(f"Conectando ao Supabase em {host}:{port}/{database}...")
+        print(f"🔄 Conectando ao Supabase em {host}:{port}/{database}...")
         conn = await asyncpg.connect(user=user, password=password,
-                                     host=host, port=port, database=database)
+                                     host=host, port=int(port), database=database)
         print("Conexão com o Supabase estabelecida com sucesso!")
 
         columns_df = df.columns.tolist()
