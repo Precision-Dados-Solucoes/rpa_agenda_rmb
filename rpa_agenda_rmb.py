@@ -685,20 +685,20 @@ async def run():
             df_processed = await process_excel_file(file_path)
             
             if df_processed is not None and not df_processed.empty:
-            # Inserir no Supabase
-            success = await insert_data_to_supabase(df_processed, "agenda_base")
-            if success:
-                print("✅ Dados inseridos no Supabase com sucesso!")
-            else:
-                print("❌ Falha ao inserir dados no Supabase.")
-                print("💾 Salvando dados localmente como backup...")
-                
-                # Salvar como backup local
-                backup_file = f"backup_agenda_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-                backup_path = os.path.join(downloads_dir, backup_file)
-                df_processed.to_excel(backup_path, index=False)
-                print(f"📁 Backup salvo em: {backup_path}")
-                print("🔄 Dados processados com sucesso, mas não inseridos no Supabase.")
+                # Inserir no Supabase
+                success = await insert_data_to_supabase(df_processed, "agenda_base")
+                if success:
+                    print("✅ Dados inseridos no Supabase com sucesso!")
+                else:
+                    print("❌ Falha ao inserir dados no Supabase.")
+                    print("💾 Salvando dados localmente como backup...")
+                    
+                    # Salvar como backup local
+                    backup_file = f"backup_agenda_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    backup_path = os.path.join(downloads_dir, backup_file)
+                    df_processed.to_excel(backup_path, index=False)
+                    print(f"📁 Backup salvo em: {backup_path}")
+                    print("🔄 Dados processados com sucesso, mas não inseridos no Supabase.")
             else:
                 print("❌ Arquivo vazio ou erro no processamento.")
         else:
