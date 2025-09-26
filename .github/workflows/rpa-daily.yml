@@ -65,46 +65,17 @@ jobs:
             debug_*.png
             downloads/
 
-      - name: Send success email
-        if: steps.rpa.outputs.exit_code == 0
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.EMAIL_SERVER }}
-          server_port: ${{ secrets.EMAIL_PORT }}
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "✅ RPA Agenda RMB - Execução Concluída com Sucesso"
-          to: ${{ secrets.EMAIL_TO }}
-          from: ${{ secrets.EMAIL_FROM }}
-          secure: false
-          require_tls: true
-          body: |
-            <h2>✅ RPA Agenda RMB - Execução Concluída com Sucesso</h2>
-            <p><strong>Data/Hora:</strong> ${{ github.run_started_at }}</p>
-            <p><strong>Commit:</strong> ${{ github.sha }}</p>
-            <p><strong>Status:</strong> ✅ Sucesso</p>
-            <p><strong>Logs:</strong> Verifique os artefatos anexados</p>
-            <hr>
-            <p><em>Este é um email automático do GitHub Actions.</em></p>
-
-      - name: Send failure email
-        if: steps.rpa.outputs.exit_code != 0
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.EMAIL_SERVER }}
-          server_port: ${{ secrets.EMAIL_PORT }}
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "❌ RPA Agenda RMB - Falha na Execução"
-          to: ${{ secrets.EMAIL_TO }}
-          from: ${{ secrets.EMAIL_FROM }}
-          secure: false
-          require_tls: true
-          body: |
-            <h2>❌ RPA Agenda RMB - Falha na Execução</h2>
-            <p><strong>Data/Hora:</strong> ${{ github.run_started_at }}</p>
-            <p><strong>Commit:</strong> ${{ github.sha }}</p>
-            <p><strong>Status:</strong> ❌ Falha</p>
-            <p><strong>Logs:</strong> Verifique os artefatos anexados para detalhes do erro</p>
-            <hr>
-            <p><em>Este é um email automático do GitHub Actions.</em></p>
+      - name: RPA Execution Summary
+        run: |
+          echo "=== RPA EXECUTION SUMMARY ==="
+          echo "Exit code: ${{ steps.rpa.outputs.exit_code }}"
+          echo "Date/Time: ${{ github.run_started_at }}"
+          echo "Commit: ${{ github.sha }}"
+          if [ "${{ steps.rpa.outputs.exit_code }}" = "0" ]; then
+            echo "Status: ✅ SUCCESS - RPA executed successfully!"
+            echo "Check artifacts for downloaded files and logs."
+          else
+            echo "Status: ❌ FAILED - RPA execution failed!"
+            echo "Check logs for error details."
+          fi
+          echo "================================"
