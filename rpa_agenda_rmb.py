@@ -21,6 +21,9 @@ from dotenv import load_dotenv
 # SUPABASE_PASSWORD=PDS2025@@
 load_dotenv('config.env')
 
+# Script sempre executa em modo headless (sem interface gráfica)
+headless_mode = True
+
 # --- Configuração da pasta de downloads ---
 downloads_dir = "downloads"
 if not os.path.exists(downloads_dir):

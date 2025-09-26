@@ -38,7 +38,6 @@ jobs:
           echo "SUPABASE_TABLE_NAME=${{ secrets.SUPABASE_TABLE_NAME }}" >> config.env
           echo "NOVAJUS_USERNAME=${{ secrets.NOVAJUS_USERNAME }}" >> config.env
           echo "NOVAJUS_PASSWORD=${{ secrets.NOVAJUS_PASSWORD }}" >> config.env
-          echo "HEADLESS=true" >> config.env
 
       - name: Run RPA Script
         id: rpa
