@@ -21,8 +21,7 @@ from dotenv import load_dotenv
 # SUPABASE_PASSWORD=PDS2025@@
 load_dotenv('config.env')
 
-# Script sempre executa em modo headless (sem interface gráfica)
-headless_mode = True
+# Configuração automática do modo headless baseada no ambiente
 
 # --- Configuração da pasta de downloads ---
 downloads_dir = "downloads"
@@ -302,9 +301,15 @@ async def insert_data_to_supabase(df, table_name):
 
 async def run():
     async with async_playwright() as p:
-        # Configuração para ambiente VISÍVEL (para inspeção)
-        # Força modo não-headless para visualização
-        headless_mode = False  # Sempre visível para inspeção
+        # Configuração automática do modo headless
+        # Detecta se está em ambiente sem interface gráfica (GitHub Actions, etc.)
+        headless_mode = os.getenv("HEADLESS", "true").lower() == "true"
+        
+        # Se estiver em ambiente CI/CD (GitHub Actions), força headless
+        if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
+            headless_mode = True
+            
+        print(f"Executando em modo {'headless' if headless_mode else 'com interface gráfica'}")
         browser = await p.chromium.launch(headless=headless_mode)
         
         chrome_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" 
@@ -684,14 +689,15 @@ async def run():
         print("\n⏸️  Pressione Ctrl+C para parar o script")
         print("="*70)
         
-        # Manter o navegador aberto para inspeção
-        try:
-            await asyncio.Event().wait()
-        except KeyboardInterrupt:
-            print("\n🛑 Script interrompido pelo usuário")
-        finally:
-            await browser.close()
-            return
+        # Manter o navegador aberto para inspeção (apenas em modo local)
+        if not headless_mode:
+            try:
+                await asyncio.Event().wait()
+            except KeyboardInterrupt:
+                print("\n🛑 Script interrompido pelo usuário")
+        
+        await browser.close()
+        return
 
         # --- CÓDIGO REMOVIDO TEMPORARIAMENTE PARA INSPEÇÃO ---
         # Todo o código após o login foi removido para permitir inspeção
