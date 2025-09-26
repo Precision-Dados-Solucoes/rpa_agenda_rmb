@@ -43,8 +43,18 @@ jobs:
       - name: Run RPA Script
         id: rpa
         run: |
-          python rpa_agenda_rmb.py > rpa_output.log 2>&1
+          echo "Starting RPA script..."
+          python rpa_agenda_rmb.py 2>&1 | tee rpa_output.log
           echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Show logs on failure
+        if: steps.rpa.outputs.exit_code != 0
+        run: |
+          echo "=== RPA SCRIPT FAILED ==="
+          echo "Exit code: ${{ steps.rpa.outputs.exit_code }}"
+          echo "=== LOG OUTPUT ==="
+          cat rpa_output.log
+          echo "=== END LOG ==="
 
       - name: Upload logs
         uses: actions/upload-artifact@v4
