@@ -1,0 +1,97 @@
+name: RPA Agenda RMB - Execução Diária
+
+on:
+  schedule:
+    - cron: "0 10 * * *"  # 07:00 BRT (UTC-3) = 10:00 UTC
+  workflow_dispatch:  # permite rodar manualmente também
+
+jobs:
+  rpa-execution:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libxss1 libasound2
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install chromium
+
+      - name: Create environment file
+        run: |
+          echo "SUPABASE_HOST=${{ secrets.SUPABASE_HOST }}" >> config.env
+          echo "SUPABASE_PORT=${{ secrets.SUPABASE_PORT }}" >> config.env
+          echo "SUPABASE_DATABASE=${{ secrets.SUPABASE_DATABASE }}" >> config.env
+          echo "SUPABASE_USER=${{ secrets.SUPABASE_USER }}" >> config.env
+          echo "SUPABASE_PASSWORD=${{ secrets.SUPABASE_PASSWORD }}" >> config.env
+          echo "SUPABASE_TABLE_NAME=${{ secrets.SUPABASE_TABLE_NAME }}" >> config.env
+          echo "NOVAJUS_USERNAME=${{ secrets.NOVAJUS_USERNAME }}" >> config.env
+          echo "NOVAJUS_PASSWORD=${{ secrets.NOVAJUS_PASSWORD }}" >> config.env
+          echo "HEADLESS=true" >> config.env
+
+      - name: Run RPA Script
+        id: rpa
+        run: |
+          python rpa_agenda_rmb.py > rpa_output.log 2>&1
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rpa-logs-${{ github.run_number }}
+          path: |
+            rpa_output.log
+            debug_*.png
+            downloads/
+
+      - name: Send success email
+        if: steps.rpa.outputs.exit_code == 0
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.EMAIL_SERVER }}
+          server_port: ${{ secrets.EMAIL_PORT }}
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "✅ RPA Agenda RMB - Execução Concluída com Sucesso"
+          to: ${{ secrets.EMAIL_TO }}
+          from: ${{ secrets.EMAIL_FROM }}
+          body: |
+            <h2>✅ RPA Agenda RMB - Execução Concluída com Sucesso</h2>
+            <p><strong>Data/Hora:</strong> ${{ github.run_started_at }}</p>
+            <p><strong>Commit:</strong> ${{ github.sha }}</p>
+            <p><strong>Status:</strong> ✅ Sucesso</p>
+            <p><strong>Logs:</strong> Verifique os artefatos anexados</p>
+            <hr>
+            <p><em>Este é um email automático do GitHub Actions.</em></p>
+
+      - name: Send failure email
+        if: steps.rpa.outputs.exit_code != 0
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.EMAIL_SERVER }}
+          server_port: ${{ secrets.EMAIL_PORT }}
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "❌ RPA Agenda RMB - Falha na Execução"
+          to: ${{ secrets.EMAIL_TO }}
+          from: ${{ secrets.EMAIL_FROM }}
+          body: |
+            <h2>❌ RPA Agenda RMB - Falha na Execução</h2>
+            <p><strong>Data/Hora:</strong> ${{ github.run_started_at }}</p>
+            <p><strong>Commit:</strong> ${{ github.sha }}</p>
+            <p><strong>Status:</strong> ❌ Falha</p>
+            <p><strong>Logs:</strong> Verifique os artefatos anexados para detalhes do erro</p>
+            <hr>
+            <p><em>Este é um email automático do GitHub Actions.</em></p>
