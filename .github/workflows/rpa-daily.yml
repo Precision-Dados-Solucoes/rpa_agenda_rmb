@@ -76,7 +76,8 @@ jobs:
           subject: "✅ RPA Agenda RMB - Execução Concluída com Sucesso"
           to: ${{ secrets.EMAIL_TO }}
           from: ${{ secrets.EMAIL_FROM }}
-          secure: true
+          secure: false
+          require_tls: true
           body: |
             <h2>✅ RPA Agenda RMB - Execução Concluída com Sucesso</h2>
             <p><strong>Data/Hora:</strong> ${{ github.run_started_at }}</p>
@@ -97,7 +98,8 @@ jobs:
           subject: "❌ RPA Agenda RMB - Falha na Execução"
           to: ${{ secrets.EMAIL_TO }}
           from: ${{ secrets.EMAIL_FROM }}
-          secure: true
+          secure: false
+          require_tls: true
           body: |
             <h2>❌ RPA Agenda RMB - Falha na Execução</h2>
             <p><strong>Data/Hora:</strong> ${{ github.run_started_at }}</p>
