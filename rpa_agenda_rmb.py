@@ -261,13 +261,47 @@ async def insert_data_to_supabase(df, table_name):
     print(f"👤 Usuário: {user}")
     print(f"🔐 Senha: {'*' * len(password)}")
 
-    conn = None
-    try:
-        print(f"🔄 Conectando ao Supabase em {host}:{port}/{database}...")
-        conn = await asyncpg.connect(user=user, password=password,
-                                     host=host, port=int(port), database=database)
-        print("Conexão com o Supabase estabelecida com sucesso!")
+    # Configurações de retry
+    max_retries = 3
+    retry_delay = 5  # segundos
+    
+    for attempt in range(max_retries):
+        conn = None
+        try:
+            print(f"🔄 Tentativa {attempt + 1}/{max_retries} - Conectando ao Supabase...")
+            
+            # Timeout de conexão mais longo para GitHub Actions
+            conn = await asyncpg.connect(
+                user=user, 
+                password=password,
+                host=host, 
+                port=int(port), 
+                database=database,
+                command_timeout=60,  # 60 segundos para comandos
+                server_settings={
+                    'application_name': 'rpa_agenda_rmb',
+                    'tcp_keepalives_idle': '600',
+                    'tcp_keepalives_interval': '30',
+                    'tcp_keepalives_count': '3'
+                }
+            )
+            print("✅ Conexão com o Supabase estabelecida com sucesso!")
+            break
+            
+        except Exception as e:
+            print(f"❌ Erro na tentativa {attempt + 1}: {e}")
+            if conn:
+                await conn.close()
+            
+            if attempt < max_retries - 1:
+                print(f"⏳ Aguardando {retry_delay} segundos antes da próxima tentativa...")
+                await asyncio.sleep(retry_delay)
+            else:
+                print(f"❌ Falha após {max_retries} tentativas. Pulando inserção no Supabase.")
+                return False
 
+    # Se chegou aqui, a conexão foi estabelecida com sucesso
+    try:
         columns_df = df.columns.tolist()
         
         # Prepara a query SQL de INSERT
@@ -279,7 +313,7 @@ async def insert_data_to_supabase(df, table_name):
         placeholders = ", ".join(f"${i+1}" for i in range(len(columns_df)))
         insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
 
-        print(f"Preparando para inserir {len(df)} linhas na tabela '{table_name}'...")
+        print(f"📊 Preparando para inserir {len(df)} linhas na tabela '{table_name}'...")
         async with conn.transaction():
             for index, row in df.iterrows():
                 values = tuple(row.values)
@@ -287,17 +321,17 @@ async def insert_data_to_supabase(df, table_name):
                 # asyncpg não aceita np.nan, apenas None
                 cleaned_values = tuple(None if pd.isna(v) else v for v in values)
                 await conn.execute(insert_query, *cleaned_values)
-            print(f"Todas as {len(df)} linhas inseridas com sucesso na tabela '{table_name}'.")
+            print(f"✅ Todas as {len(df)} linhas inseridas com sucesso na tabela '{table_name}'.")
         
         return True
 
     except Exception as e:
-        print(f"Erro ao conectar ou inserir dados no Supabase: {e}")
+        print(f"❌ Erro ao inserir dados no Supabase: {e}")
         return False
     finally:
         if conn:
             await conn.close()
-            print("Conexão com o Supabase fechada.")
+            print("🔌 Conexão com o Supabase fechada.")
 
 async def run():
     async with async_playwright() as p:
@@ -651,12 +685,20 @@ async def run():
             df_processed = await process_excel_file(file_path)
             
             if df_processed is not None and not df_processed.empty:
-                # Inserir no Supabase
-                success = await insert_data_to_supabase(df_processed, "agenda_base")
-                if success:
-                    print("✅ Dados inseridos no Supabase com sucesso!")
-                else:
-                    print("❌ Falha ao inserir dados no Supabase.")
+            # Inserir no Supabase
+            success = await insert_data_to_supabase(df_processed, "agenda_base")
+            if success:
+                print("✅ Dados inseridos no Supabase com sucesso!")
+            else:
+                print("❌ Falha ao inserir dados no Supabase.")
+                print("💾 Salvando dados localmente como backup...")
+                
+                # Salvar como backup local
+                backup_file = f"backup_agenda_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                backup_path = os.path.join(downloads_dir, backup_file)
+                df_processed.to_excel(backup_path, index=False)
+                print(f"📁 Backup salvo em: {backup_path}")
+                print("🔄 Dados processados com sucesso, mas não inseridos no Supabase.")
             else:
                 print("❌ Arquivo vazio ou erro no processamento.")
         else:
