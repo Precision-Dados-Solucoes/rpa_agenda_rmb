@@ -18,7 +18,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install asyncpg python-dotenv
+          pip install asyncpg python-dotenv psycopg2-binary
 
       - name: Create environment file
         run: |
@@ -45,6 +45,11 @@ jobs:
         run: |
           echo "=== TESTANDO VARIÁVEIS INDIVIDUAIS ==="
           python test_supabase_individual_vars.py
+
+      - name: Test psycopg2 Connection
+        run: |
+          echo "=== TESTANDO COM PSYCOPG2 ==="
+          python test_psycopg2_connection.py
 
       - name: Show Environment Variables (Debug)
         run: |

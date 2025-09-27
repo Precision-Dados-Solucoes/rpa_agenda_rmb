@@ -5,6 +5,7 @@ import pandas as pd
 import asyncpg
 from dotenv import load_dotenv
 from supabase import create_client, Client
+import psycopg2
 
 # --- INSTALAÇÃO DE BIBLIOTECAS (rode estes comandos no seu terminal se ainda não o fez): ---
 # pip install pandas
@@ -246,6 +247,119 @@ def generate_link(id_legalone):
     params = "?hasNavigation=True&currentPage=1&returnUrl=%2Fagenda%2FCompromissoTarefa%2FSearch"
     
     return f"{base_url}{id_legalone}{params}"
+
+def insert_data_to_supabase_psycopg2(df, table_name):
+    """
+    Insere os dados usando psycopg2 (mais estável para Supabase)
+    """
+    print("🔗 Conectando ao Supabase via psycopg2...")
+    
+    # Variáveis individuais
+    user = os.getenv("user") or os.getenv("SUPABASE_USER")
+    password = os.getenv("password") or os.getenv("SUPABASE_PASSWORD")
+    host = os.getenv("host") or os.getenv("SUPABASE_HOST")
+    port = os.getenv("port") or os.getenv("SUPABASE_PORT", "5432")
+    dbname = os.getenv("dbname") or os.getenv("SUPABASE_DATABASE")
+    
+    print(f"🔍 DEBUG - Variáveis carregadas:")
+    print(f"  user: {user}")
+    print(f"  password: {'*' * len(password) if password else 'NÃO DEFINIDO'}")
+    print(f"  host: {host}")
+    print(f"  port: {port}")
+    print(f"  dbname: {dbname}")
+    
+    if not all([user, password, host, dbname]):
+        print("❌ ERRO: Variáveis do Supabase incompletas!")
+        return False
+    
+    try:
+        # Conectar usando psycopg2
+        print("🔄 Conectando com psycopg2...")
+        conn = psycopg2.connect(
+            user=user,
+            password=password,
+            host=host,
+            port=port,
+            dbname=dbname,
+            sslmode="require"
+        )
+        print("✅ Conexão estabelecida com sucesso!")
+        
+        # Teste de conectividade
+        cursor = conn.cursor()
+        cursor.execute("SELECT NOW()")
+        result = cursor.fetchone()
+        print(f"📊 Data/hora atual: {result[0]}")
+        
+        # Verificar se a tabela existe
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = %s
+            )
+        """, (table_name,))
+        table_exists = cursor.fetchone()[0]
+        
+        if not table_exists:
+            print(f"❌ ERRO: Tabela '{table_name}' não existe!")
+            return False
+        
+        print(f"✅ Tabela '{table_name}' encontrada!")
+        
+        # Contar registros existentes
+        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+        count_before = cursor.fetchone()[0]
+        print(f"📊 Registros existentes: {count_before}")
+        
+        # Inserir dados
+        columns_df = df.columns.tolist()
+        columns_sql = ", ".join(f'"{col}"' for col in columns_df)
+        placeholders = ", ".join(["%s"] * len(columns_df))
+        insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
+        
+        print(f"📊 Inserindo {len(df)} registros...")
+        
+        # Inserir em lotes
+        batch_size = 100
+        total_inserted = 0
+        
+        for i in range(0, len(df), batch_size):
+            batch_df = df.iloc[i:i+batch_size]
+            print(f"📦 Lote {i//batch_size + 1}/{(len(df)-1)//batch_size + 1}")
+            
+            for index, row in batch_df.iterrows():
+                values = tuple(row.values)
+                # Converter NaN para None
+                cleaned_values = tuple(None if pd.isna(v) else v for v in values)
+                cursor.execute(insert_query, cleaned_values)
+                total_inserted += 1
+        
+        # Commit das alterações
+        conn.commit()
+        
+        # Verificar resultado
+        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+        count_after = cursor.fetchone()[0]
+        print(f"✅ Inserção concluída! Total inserido: {total_inserted}")
+        print(f"📊 Registros: {count_before} → {count_after}")
+        
+        cursor.close()
+        conn.close()
+        print("🔌 Conexão fechada com sucesso!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erro na conexão: {e}")
+        print(f"🔍 Tipo: {type(e).__name__}")
+        
+        if "could not translate host name" in str(e):
+            print("🌐 Erro DNS - verifique se o host está correto")
+        elif "authentication failed" in str(e):
+            print("🔐 Erro de autenticação - verifique usuário e senha")
+        elif "SSL" in str(e):
+            print("🔒 Erro SSL - verifique se sslmode='require' está sendo usado")
+        
+        return False
 
 async def insert_data_to_supabase_connection_string(df, table_name):
     """
@@ -917,9 +1031,13 @@ async def run():
             df_processed = await process_excel_file(file_path)
             
             if df_processed is not None and not df_processed.empty:
-                # Tentar inserir via connection string primeiro (mais confiável)
-                print("🔄 Tentando inserir dados via connection string...")
-                success = await insert_data_to_supabase_connection_string(df_processed, "agenda_base")
+                # Tentar inserir via psycopg2 primeiro (mais estável)
+                print("🔄 Tentando inserir dados via psycopg2...")
+                success = insert_data_to_supabase_psycopg2(df_processed, "agenda_base")
+                
+                if not success:
+                    print("⚠️ psycopg2 falhou, tentando connection string...")
+                    success = await insert_data_to_supabase_connection_string(df_processed, "agenda_base")
                 
                 if not success:
                     print("⚠️ Connection string falhou, tentando conexão direta como fallback...")
@@ -928,7 +1046,7 @@ async def run():
                 if success:
                     print("✅ Dados inseridos no Supabase com sucesso!")
                 else:
-                    print("❌ Falha ao inserir dados no Supabase (connection string e conexão direta falharam).")
+                    print("❌ Falha ao inserir dados no Supabase (todas as tentativas falharam).")
                     print("💾 Salvando dados localmente como backup...")
                     
                     # Salvar como backup local
