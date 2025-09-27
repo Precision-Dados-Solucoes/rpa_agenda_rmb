@@ -1,69 +1,39 @@
 name: Test Supabase Connection
 
-on:
-  workflow_dispatch:  # permite rodar manualmente
+import psycopg2
+import os
 
-jobs:
-  test-connection:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+# Variáveis de ambiente (virão dos Secrets no GitHub Actions)
+USER = os.getenv("user")
+PASSWORD = os.getenv("password")
+HOST = os.getenv("host")
+PORT = os.getenv("port")
+DBNAME = os.getenv("dbname")
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
+try:
+    # Conexão com o banco
+    connection = psycopg2.connect(
+        user=USER,
+        password=PASSWORD,
+        host=HOST,
+        port=PORT,
+        dbname=DBNAME,
+        sslmode="require"   # 🔑 necessário no Supabase
+    )
+    print("✅ Connection successful!")
 
-      - name: Install Python dependencies
-        run: |
-          pip install asyncpg python-dotenv
+    # Criação de cursor
+    cursor = connection.cursor()
 
-      - name: Create environment file
-        run: |
-          echo "SUPABASE_HOST=${{ secrets.SUPABASE_HOST }}" >> config.env
-          echo "SUPABASE_PORT=${{ secrets.SUPABASE_PORT }}" >> config.env
-          echo "SUPABASE_DATABASE=${{ secrets.SUPABASE_DATABASE }}" >> config.env
-          echo "SUPABASE_USER=${{ secrets.SUPABASE_USER }}" >> config.env
-          echo "SUPABASE_PASSWORD=${{ secrets.SUPABASE_PASSWORD }}" >> config.env
-          echo "SUPABASE_TABLE_NAME=${{ secrets.SUPABASE_TABLE_NAME }}" >> config.env
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> config.env
-          # Variáveis individuais para psycopg2
-          echo "user=${{ secrets.SUPABASE_USER }}" >> config.env
-          echo "password=${{ secrets.SUPABASE_PASSWORD }}" >> config.env
-          echo "host=${{ secrets.SUPABASE_HOST }}" >> config.env
-          echo "port=${{ secrets.SUPABASE_PORT }}" >> config.env
-          echo "dbname=${{ secrets.SUPABASE_DATABASE }}" >> config.env
+    # Exemplo de query
+    cursor.execute("SELECT NOW();")
+    result = cursor.fetchone()
+    print("🕒 Current Time:", result)
 
-      - name: Test Supabase Connection
-        run: |
-          echo "=== TESTANDO CONEXÃO SUPABASE ==="
-          python test_simple_connection.py
+    # Fechar cursor e conexão
+    cursor.close()
+    connection.close()
+    print("🔒 Connection closed.")
 
-      - name: Test Individual Variables
-        run: |
-          echo "=== TESTANDO VARIÁVEIS INDIVIDUAIS ==="
-          python test_supabase_individual_vars.py
-
-      - name: Show Environment Variables (Debug)
-        run: |
-          echo "=== VARIÁVEIS DE AMBIENTE ==="
-          echo "SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}"
-          echo "SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}"
-          echo "SUPABASE_DATABASE: ${{ secrets.SUPABASE_DATABASE }}"
-          echo "SUPABASE_USER: ${{ secrets.SUPABASE_USER }}"
-          echo "SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}"
-          echo "SUPABASE_TABLE_NAME: ${{ secrets.SUPABASE_TABLE_NAME }}"
-          echo "DATABASE_URL: ${{ secrets.DATABASE_URL }}"
-
-      - name: Test Results Summary
-        run: |
-          echo "=== RESUMO DOS TESTES ==="
-          echo "✅ Workflow de teste de conexão executado"
-          echo "📊 Verifique os logs acima para diagnosticar problemas"
-          echo "🔧 Se houver erros, verifique:"
-          echo "   1. Secrets configurados corretamente"
-          echo "   2. DATABASE_URL com senha real (não [YOUR-PASSWORD])"
-          echo "   3. sslmode=require na URL"
-          echo "   4. Supabase acessível"
+except Exception as e:
+    print(f"❌ Failed to connect: {e}")
