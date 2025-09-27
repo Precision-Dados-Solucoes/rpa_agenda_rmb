@@ -96,19 +96,33 @@ def debug_connection_data():
     
     try:
         print(f"🔄 Testando resolução DNS para {final_host}...")
-        ip_address = socket.gethostbyname(final_host)
-        print(f"✅ DNS resolvido: {final_host} → {ip_address}")
         
-        print(f"🔄 Testando conectividade TCP na porta {final_port}...")
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)  # 10 segundos de timeout
-        result = sock.connect_ex((final_host, int(final_port)))
-        sock.close()
-        
-        if result == 0:
-            print(f"✅ Porta {final_port} está acessível!")
-        else:
-            print(f"❌ Porta {final_port} não está acessível (código: {result})")
+        # Forçar IPv4
+        try:
+            ip_info = socket.gethostbyname_ex(final_host)
+            ipv4_addresses = ip_info[2]  # Lista de endereços IPv4
+            
+            if ipv4_addresses:
+                ip_address = ipv4_addresses[0]  # Primeiro IPv4
+                print(f"✅ DNS IPv4 resolvido: {final_host} → {ip_address}")
+                
+                print(f"🔄 Testando conectividade TCP na porta {final_port}...")
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(10)  # 10 segundos de timeout
+                result = sock.connect_ex((ip_address, int(final_port)))  # Usar IP direto
+                sock.close()
+                
+                if result == 0:
+                    print(f"✅ Porta {final_port} está acessível em {ip_address}!")
+                else:
+                    print(f"❌ Porta {final_port} não está acessível em {ip_address} (código: {result})")
+                    return False
+            else:
+                print(f"❌ Nenhum endereço IPv4 encontrado para {final_host}")
+                return False
+                
+        except socket.gaierror as e:
+            print(f"❌ DNS IPv4 falhou: {e}")
             return False
             
     except socket.gaierror as e:

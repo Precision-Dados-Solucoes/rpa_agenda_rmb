@@ -13,9 +13,9 @@ from dotenv import load_dotenv
 load_dotenv('config.env')
 
 def test_dns_resolution():
-    """Testa resolução DNS de hosts alternativos"""
+    """Testa resolução DNS de hosts alternativos (forçando IPv4)"""
     print("="*70)
-    print("🔍 TESTE DE RESOLUÇÃO DNS - HOSTS ALTERNATIVOS")
+    print("🔍 TESTE DE RESOLUÇÃO DNS - HOSTS ALTERNATIVOS (IPv4)")
     print("="*70)
     
     # Hosts alternativos para testar
@@ -30,20 +30,27 @@ def test_dns_resolution():
     for host in test_hosts:
         print(f"\n🔄 Testando DNS para: {host}")
         try:
-            ip = socket.gethostbyname(host)
-            print(f"✅ DNS resolvido: {host} → {ip}")
+            # Forçar IPv4
+            ip = socket.gethostbyname_ex(host)
+            ipv4_addresses = ip[2]  # Lista de endereços IPv4
             
-            # Testar conectividade na porta 5432
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)
-            result = sock.connect_ex((host, 5432))
-            sock.close()
-            
-            if result == 0:
-                print(f"✅ Porta 5432 acessível em {host}")
-                return host
+            if ipv4_addresses:
+                ip = ipv4_addresses[0]  # Primeiro IPv4
+                print(f"✅ DNS IPv4 resolvido: {host} → {ip}")
+                
+                # Testar conectividade na porta 5432 (IPv4)
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5)
+                result = sock.connect_ex((ip, 5432))  # Usar IP direto
+                sock.close()
+                
+                if result == 0:
+                    print(f"✅ Porta 5432 acessível em {host} ({ip})")
+                    return host
+                else:
+                    print(f"❌ Porta 5432 não acessível em {host} ({ip})")
             else:
-                print(f"❌ Porta 5432 não acessível em {host}")
+                print(f"❌ Nenhum endereço IPv4 encontrado para {host}")
                 
         except socket.gaierror as e:
             print(f"❌ DNS falhou para {host}: {e}")
