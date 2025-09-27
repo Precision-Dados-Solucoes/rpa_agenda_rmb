@@ -550,7 +550,7 @@ async def insert_data_to_supabase(df, table_name):
         try:
             print(f"🔄 Tentativa {attempt + 1}/{max_retries} - Conectando ao Supabase...")
             
-            # Configurações de conexão otimizadas para GitHub Actions
+            # Configurações de conexão otimizadas para pgbouncer
             conn = await asyncpg.connect(
                 user=user, 
                 password=password,
@@ -558,6 +558,7 @@ async def insert_data_to_supabase(df, table_name):
                 port=int(port), 
                 database=database,
                 command_timeout=120,  # Aumentado para 120 segundos
+                statement_cache_size=0,  # 🔑 CRÍTICO: Desabilita prepared statements para pgbouncer
                 server_settings={
                     'application_name': 'rpa_agenda_rmb_github_actions',
                     'tcp_keepalives_idle': '600',

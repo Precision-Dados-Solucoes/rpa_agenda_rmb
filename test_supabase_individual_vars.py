@@ -43,7 +43,8 @@ async def test_individual_variables():
             host=host,
             port=int(port),
             database=dbname,
-            ssl='require'  # SSL obrigatório para Supabase
+            ssl='require',  # SSL obrigatório para Supabase
+            statement_cache_size=0  # 🔑 CRÍTICO: Desabilita prepared statements para pgbouncer
         )
         print("✅ Conexão estabelecida com sucesso!")
         
