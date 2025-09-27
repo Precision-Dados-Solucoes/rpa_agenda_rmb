@@ -56,6 +56,11 @@ jobs:
           echo "=== DEBUG COMPLETO DOS DADOS ==="
           python debug_connection_data.py
 
+      - name: Test Alternative Hosts
+        run: |
+          echo "=== TESTANDO HOSTS ALTERNATIVOS ==="
+          python test_alternative_hosts.py
+
       - name: Show Environment Variables (Debug)
         run: |
           echo "=== VARIÁVEIS DE AMBIENTE ==="
