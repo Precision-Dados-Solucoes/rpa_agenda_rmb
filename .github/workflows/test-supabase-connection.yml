@@ -29,11 +29,22 @@ jobs:
           echo "SUPABASE_PASSWORD=${{ secrets.SUPABASE_PASSWORD }}" >> config.env
           echo "SUPABASE_TABLE_NAME=${{ secrets.SUPABASE_TABLE_NAME }}" >> config.env
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> config.env
+          # Variáveis individuais para psycopg2
+          echo "user=${{ secrets.SUPABASE_USER }}" >> config.env
+          echo "password=${{ secrets.SUPABASE_PASSWORD }}" >> config.env
+          echo "host=${{ secrets.SUPABASE_HOST }}" >> config.env
+          echo "port=${{ secrets.SUPABASE_PORT }}" >> config.env
+          echo "dbname=${{ secrets.SUPABASE_DATABASE }}" >> config.env
 
       - name: Test Supabase Connection
         run: |
           echo "=== TESTANDO CONEXÃO SUPABASE ==="
           python test_simple_connection.py
+
+      - name: Test Individual Variables
+        run: |
+          echo "=== TESTANDO VARIÁVEIS INDIVIDUAIS ==="
+          python test_supabase_individual_vars.py
 
       - name: Show Environment Variables (Debug)
         run: |
