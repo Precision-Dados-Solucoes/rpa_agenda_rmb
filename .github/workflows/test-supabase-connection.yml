@@ -51,6 +51,11 @@ jobs:
           echo "=== TESTANDO COM PSYCOPG2 ==="
           python test_psycopg2_connection.py
 
+      - name: Debug Connection Data
+        run: |
+          echo "=== DEBUG COMPLETO DOS DADOS ==="
+          python debug_connection_data.py
+
       - name: Show Environment Variables (Debug)
         run: |
           echo "=== VARIÁVEIS DE AMBIENTE ==="
