@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import asyncpg
 from dotenv import load_dotenv
+from supabase import create_client, Client
 
 # --- INSTALAÇÃO DE BIBLIOTECAS (rode estes comandos no seu terminal se ainda não o fez): ---
 # pip install pandas
@@ -246,6 +247,157 @@ def generate_link(id_legalone):
     
     return f"{base_url}{id_legalone}{params}"
 
+async def insert_data_to_supabase_connection_string(df, table_name):
+    """
+    Insere os dados usando connection string completa com sslmode=require
+    """
+    print("🔗 Conectando ao Supabase via connection string...")
+    
+    # Connection string completa
+    database_url = os.getenv("DATABASE_URL")
+    
+    print(f"🔍 DEBUG - Verificando connection string:")
+    print(f"  DATABASE_URL: {'*' * len(database_url) if database_url else 'NÃO DEFINIDO'}")
+    
+    if not database_url:
+        print("❌ ERRO: DATABASE_URL não configurada!")
+        print("🔧 Configure DATABASE_URL no formato:")
+        print("   postgresql://postgres:<SENHA>@db.<PROJECT>.supabase.co:5432/postgres?sslmode=require")
+        return False
+    
+    try:
+        # Conectar usando connection string
+        print("🔄 Conectando com connection string...")
+        conn = await asyncpg.connect(database_url)
+        print("✅ Conexão estabelecida com sucesso!")
+        
+        # Teste de conectividade
+        version = await conn.fetchval("SELECT version()")
+        print(f"📊 Versão do PostgreSQL: {version[:50]}...")
+        
+        # Verificar se a tabela existe
+        table_exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = $1
+            )
+        """, table_name)
+        
+        if not table_exists:
+            print(f"❌ ERRO: Tabela '{table_name}' não existe!")
+            return False
+        
+        print(f"✅ Tabela '{table_name}' encontrada!")
+        
+        # Contar registros existentes
+        count_before = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
+        print(f"📊 Registros existentes: {count_before}")
+        
+        # Inserir dados
+        columns_df = df.columns.tolist()
+        columns_sql = ", ".join(f'"{col}"' for col in columns_df)
+        placeholders = ", ".join(f"${i+1}" for i in range(len(columns_df)))
+        insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
+        
+        print(f"📊 Inserindo {len(df)} registros...")
+        
+        # Inserir em lotes
+        batch_size = 100
+        total_inserted = 0
+        
+        async with conn.transaction():
+            for i in range(0, len(df), batch_size):
+                batch_df = df.iloc[i:i+batch_size]
+                print(f"📦 Lote {i//batch_size + 1}/{(len(df)-1)//batch_size + 1}")
+                
+                for index, row in batch_df.iterrows():
+                    values = tuple(row.values)
+                    cleaned_values = tuple(None if pd.isna(v) else v for v in values)
+                    await conn.execute(insert_query, *cleaned_values)
+                    total_inserted += 1
+        
+        # Verificar resultado
+        count_after = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
+        print(f"✅ Inserção concluída! Total inserido: {total_inserted}")
+        print(f"📊 Registros: {count_before} → {count_after}")
+        
+        await conn.close()
+        print("🔌 Conexão fechada com sucesso!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erro na conexão: {e}")
+        print(f"🔍 Tipo: {type(e).__name__}")
+        
+        if "SSL" in str(e):
+            print("🔒 Erro SSL - verifique se sslmode=require está na URL")
+        elif "authentication" in str(e).lower():
+            print("🔐 Erro de autenticação - verifique usuário e senha")
+        elif "connection" in str(e).lower():
+            print("🌐 Erro de conexão - verifique a URL")
+        
+        return False
+
+async def insert_data_to_supabase_api(df, table_name):
+    """
+    Insere os dados de um DataFrame do pandas em uma tabela do Supabase usando a API REST.
+    """
+    print("🔗 Conectando ao Supabase via API...")
+    
+    # Credenciais da API do Supabase
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_ANON_KEY")
+    
+    print(f"🔍 DEBUG - Verificando credenciais da API:")
+    print(f"  SUPABASE_URL: {supabase_url if supabase_url else 'NÃO DEFINIDO'}")
+    print(f"  SUPABASE_ANON_KEY: {'*' * len(supabase_key) if supabase_key else 'NÃO DEFINIDO'}")
+    
+    if not supabase_url or not supabase_key:
+        print("❌ ERRO: Credenciais da API do Supabase não configuradas!")
+        print("🔧 Você precisa configurar SUPABASE_URL e SUPABASE_ANON_KEY")
+        print("🔧 Essas credenciais estão disponíveis no painel do Supabase em Settings > API")
+        return False
+    
+    try:
+        # Criar cliente Supabase
+        supabase: Client = create_client(supabase_url, supabase_key)
+        print("✅ Cliente Supabase criado com sucesso!")
+        
+        # Converter DataFrame para lista de dicionários
+        data_to_insert = df.to_dict('records')
+        print(f"📊 Preparando para inserir {len(data_to_insert)} registros via API...")
+        
+        # Inserir dados em lotes para evitar timeout
+        batch_size = 100
+        total_inserted = 0
+        
+        for i in range(0, len(data_to_insert), batch_size):
+            batch = data_to_insert[i:i+batch_size]
+            print(f"📦 Processando lote {i//batch_size + 1}/{(len(data_to_insert)-1)//batch_size + 1} ({len(batch)} registros)")
+            
+            try:
+                # Inserir lote via API
+                result = supabase.table(table_name).insert(batch).execute()
+                
+                if result.data:
+                    total_inserted += len(result.data)
+                    print(f"✅ Lote {i//batch_size + 1} inserido com sucesso!")
+                else:
+                    print(f"⚠️ Lote {i//batch_size + 1} inserido, mas sem dados retornados")
+                    
+            except Exception as e:
+                print(f"❌ Erro ao inserir lote {i//batch_size + 1}: {e}")
+                # Continuar com os próximos lotes mesmo se um falhar
+                continue
+        
+        print(f"✅ Inserção via API concluída! Total de registros inseridos: {total_inserted}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erro ao conectar com a API do Supabase: {e}")
+        print(f"🔍 Tipo do erro: {type(e).__name__}")
+        return False
+
 async def insert_data_to_supabase(df, table_name):
     """
     Insere os dados de um DataFrame do pandas em uma tabela do Supabase.
@@ -259,49 +411,110 @@ async def insert_data_to_supabase(df, table_name):
 
     print(f"🔗 Conectando ao Supabase: {host}:{port}/{database}")
     print(f"👤 Usuário: {user}")
-    print(f"🔐 Senha: {'*' * len(password)}")
+    print(f"🔐 Senha: {'*' * len(password) if password else 'NÃO CONFIGURADO'}")
+    
+    # Debug: Verificar se as variáveis estão sendo carregadas
+    print("🔍 DEBUG - Verificando variáveis de ambiente:")
+    print(f"  SUPABASE_HOST: {os.getenv('SUPABASE_HOST', 'NÃO DEFINIDO')}")
+    print(f"  SUPABASE_PORT: {os.getenv('SUPABASE_PORT', 'NÃO DEFINIDO')}")
+    print(f"  SUPABASE_DATABASE: {os.getenv('SUPABASE_DATABASE', 'NÃO DEFINIDO')}")
+    print(f"  SUPABASE_USER: {os.getenv('SUPABASE_USER', 'NÃO DEFINIDO')}")
+    print(f"  SUPABASE_PASSWORD: {'*' * len(os.getenv('SUPABASE_PASSWORD', '')) if os.getenv('SUPABASE_PASSWORD') else 'NÃO DEFINIDO'}")
+    
+    # Verificar se todas as credenciais estão presentes
+    if not all([host, port, database, user, password]):
+        print("❌ ERRO: Credenciais do Supabase incompletas!")
+        print("Verifique se todos os secrets estão configurados no GitHub Actions")
+        return False
 
     # Configurações de retry
-    max_retries = 3
-    retry_delay = 5  # segundos
+    max_retries = 5  # Aumentado de 3 para 5
+    retry_delay = 10  # Aumentado de 5 para 10 segundos
     
     for attempt in range(max_retries):
         conn = None
         try:
             print(f"🔄 Tentativa {attempt + 1}/{max_retries} - Conectando ao Supabase...")
             
-            # Timeout de conexão mais longo para GitHub Actions
+            # Configurações de conexão otimizadas para GitHub Actions
             conn = await asyncpg.connect(
                 user=user, 
                 password=password,
                 host=host, 
                 port=int(port), 
                 database=database,
-                command_timeout=60,  # 60 segundos para comandos
+                command_timeout=120,  # Aumentado para 120 segundos
                 server_settings={
-                    'application_name': 'rpa_agenda_rmb',
+                    'application_name': 'rpa_agenda_rmb_github_actions',
                     'tcp_keepalives_idle': '600',
                     'tcp_keepalives_interval': '30',
-                    'tcp_keepalives_count': '3'
+                    'tcp_keepalives_count': '3',
+                    'statement_timeout': '300000',  # 5 minutos
+                    'idle_in_transaction_session_timeout': '300000'
                 }
             )
             print("✅ Conexão com o Supabase estabelecida com sucesso!")
+            
+            # Teste de conectividade básica
+            version = await conn.fetchval("SELECT version()")
+            print(f"📊 Versão do PostgreSQL: {version[:50]}...")
+            
             break
             
         except Exception as e:
             print(f"❌ Erro na tentativa {attempt + 1}: {e}")
+            print(f"🔍 Tipo do erro: {type(e).__name__}")
+            
+            # Logs mais detalhados para diferentes tipos de erro
+            if "timeout" in str(e).lower():
+                print("⏰ Erro de timeout - pode ser problema de rede ou servidor lento")
+            elif "authentication" in str(e).lower() or "password" in str(e).lower():
+                print("🔐 Erro de autenticação - verifique usuário e senha")
+            elif "connection" in str(e).lower():
+                print("🌐 Erro de conexão - verifique host e porta")
+            elif "database" in str(e).lower():
+                print("🗄️ Erro de database - verifique se o database existe")
+            
             if conn:
-                await conn.close()
+                try:
+                    await conn.close()
+                except:
+                    pass
             
             if attempt < max_retries - 1:
                 print(f"⏳ Aguardando {retry_delay} segundos antes da próxima tentativa...")
                 await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 1.5, 30)  # Backoff exponencial limitado a 30s
             else:
                 print(f"❌ Falha após {max_retries} tentativas. Pulando inserção no Supabase.")
+                print("🔧 Possíveis soluções:")
+                print("  1. Verifique se os secrets estão configurados corretamente")
+                print("  2. Verifique se o Supabase está acessível")
+                print("  3. Verifique se as credenciais estão corretas")
                 return False
 
     # Se chegou aqui, a conexão foi estabelecida com sucesso
     try:
+        # Teste adicional de conectividade
+        print("🔍 Testando conectividade com a tabela...")
+        table_exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = $1
+            )
+        """, table_name)
+        
+        if not table_exists:
+            print(f"❌ ERRO: Tabela '{table_name}' não existe no Supabase!")
+            print("🔧 Verifique se a tabela foi criada corretamente")
+            return False
+        
+        print(f"✅ Tabela '{table_name}' encontrada!")
+        
+        # Contar registros existentes
+        count_before = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
+        print(f"📊 Registros existentes na tabela: {count_before}")
+        
         columns_df = df.columns.tolist()
         
         # Prepara a query SQL de INSERT
@@ -314,19 +527,38 @@ async def insert_data_to_supabase(df, table_name):
         insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
 
         print(f"📊 Preparando para inserir {len(df)} linhas na tabela '{table_name}'...")
+        print(f"🔍 Colunas a serem inseridas: {columns_df}")
+        
+        # Inserir dados em lotes para melhor performance
+        batch_size = 100
+        total_inserted = 0
+        
         async with conn.transaction():
-            for index, row in df.iterrows():
-                values = tuple(row.values)
-                # Verifica se há valores NaN e converte para None (NULL no DB)
-                # asyncpg não aceita np.nan, apenas None
-                cleaned_values = tuple(None if pd.isna(v) else v for v in values)
-                await conn.execute(insert_query, *cleaned_values)
-            print(f"✅ Todas as {len(df)} linhas inseridas com sucesso na tabela '{table_name}'.")
+            for i in range(0, len(df), batch_size):
+                batch_df = df.iloc[i:i+batch_size]
+                print(f"📦 Processando lote {i//batch_size + 1}/{(len(df)-1)//batch_size + 1} ({len(batch_df)} registros)")
+                
+                for index, row in batch_df.iterrows():
+                    values = tuple(row.values)
+                    # Verifica se há valores NaN e converte para None (NULL no DB)
+                    # asyncpg não aceita np.nan, apenas None
+                    cleaned_values = tuple(None if pd.isna(v) else v for v in values)
+                    await conn.execute(insert_query, *cleaned_values)
+                    total_inserted += 1
+                
+                print(f"✅ Lote {i//batch_size + 1} inserido com sucesso")
+        
+        # Verificar quantos registros foram inseridos
+        count_after = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
+        print(f"✅ Inserção concluída! Total de registros inseridos: {total_inserted}")
+        print(f"📊 Registros na tabela antes: {count_before}, depois: {count_after}")
         
         return True
 
     except Exception as e:
         print(f"❌ Erro ao inserir dados no Supabase: {e}")
+        print(f"🔍 Tipo do erro: {type(e).__name__}")
+        print(f"🔍 Detalhes do erro: {str(e)}")
         return False
     finally:
         if conn:
@@ -685,12 +917,18 @@ async def run():
             df_processed = await process_excel_file(file_path)
             
             if df_processed is not None and not df_processed.empty:
-                # Inserir no Supabase
-                success = await insert_data_to_supabase(df_processed, "agenda_base")
+                # Tentar inserir via connection string primeiro (mais confiável)
+                print("🔄 Tentando inserir dados via connection string...")
+                success = await insert_data_to_supabase_connection_string(df_processed, "agenda_base")
+                
+                if not success:
+                    print("⚠️ Connection string falhou, tentando conexão direta como fallback...")
+                    success = await insert_data_to_supabase(df_processed, "agenda_base")
+                
                 if success:
                     print("✅ Dados inseridos no Supabase com sucesso!")
                 else:
-                    print("❌ Falha ao inserir dados no Supabase.")
+                    print("❌ Falha ao inserir dados no Supabase (connection string e conexão direta falharam).")
                     print("💾 Salvando dados localmente como backup...")
                     
                     # Salvar como backup local

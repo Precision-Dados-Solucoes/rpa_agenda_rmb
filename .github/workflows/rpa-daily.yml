@@ -36,8 +36,14 @@ jobs:
           echo "SUPABASE_USER=${{ secrets.SUPABASE_USER }}" >> config.env
           echo "SUPABASE_PASSWORD=${{ secrets.SUPABASE_PASSWORD }}" >> config.env
           echo "SUPABASE_TABLE_NAME=${{ secrets.SUPABASE_TABLE_NAME }}" >> config.env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> config.env
           echo "NOVAJUS_USERNAME=${{ secrets.NOVAJUS_USERNAME }}" >> config.env
           echo "NOVAJUS_PASSWORD=${{ secrets.NOVAJUS_PASSWORD }}" >> config.env
+
+      - name: Test Supabase Connection
+        run: |
+          echo "Testing Supabase connection before running RPA..."
+          python test_github_actions_connection.py
 
       - name: Run RPA Script
         id: rpa

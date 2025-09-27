@@ -19,7 +19,12 @@ SUPABASE_DATABASE = postgres
 SUPABASE_USER = postgres
 SUPABASE_PASSWORD = **PDS2025@@
 SUPABASE_TABLE_NAME = agenda_base
+DATABASE_URL = postgresql://postgres:**PDS2025@@@db.dhfmqumwizrwdbjnbcua.supabase.co:5432/postgres?sslmode=require
 ```
+
+> **📝 IMPORTANTE:** A `DATABASE_URL` é mais confiável que conexões individuais. 
+> **Formato:** `postgresql://postgres:<SENHA>@db.<PROJECT>.supabase.co:5432/postgres?sslmode=require`
+> **SSL obrigatório:** O `sslmode=require` é necessário para conexões seguras.
 
 #### **🔐 Secrets do Novajus:**
 ```
