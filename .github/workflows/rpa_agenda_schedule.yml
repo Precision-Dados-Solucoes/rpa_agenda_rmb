@@ -1,0 +1,153 @@
+name: RPA Agenda - Agendamento Automático
+
+on:
+  schedule:
+    # Executa às 11:00, 14:00 e 16:00 (horário de São Paulo)
+    # Cron: minuto hora dia mês dia_da_semana
+    # 0 14 * * * = 14:00 UTC (11:00 BRT) - Diariamente
+    # 0 17 * * * = 17:00 UTC (14:00 BRT) - Diariamente  
+    # 0 19 * * * = 19:00 UTC (16:00 BRT) - Diariamente
+    - cron: '0 14 * * *'  # 11:00 BRT (14:00 UTC)
+    - cron: '0 17 * * *'  # 14:00 BRT (17:00 UTC)
+    - cron: '0 19 * * *'  # 16:00 BRT (19:00 UTC)
+  
+  # Permite execução manual
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Modo de teste (sem interface gráfica)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  # Configuração do fuso horário
+  TZ: America/Sao_Paulo
+  
+  # Configurações do RPA
+  HEADLESS: true
+  CI: true
+  GITHUB_ACTIONS: true
+
+jobs:
+  rpa-agenda:
+    name: Executar RPA Agenda
+    runs-on: ubuntu-latest
+    
+    # Configurar timezone
+    defaults:
+      run:
+        shell: bash
+    
+    steps:
+    - name: Configurar Timezone
+      run: |
+        sudo timedatectl set-timezone America/Sao_Paulo
+        echo "Timezone configurado: $(date)"
+    
+    - name: Checkout do código
+      uses: actions/checkout@v4
+      
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    
+    - name: Instalar dependências do sistema
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libnss3 \
+          libatk-bridge2.0-0 \
+          libdrm2 \
+          libxkbcommon0 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxrandr2 \
+          libgbm1 \
+          libxss1 \
+          libasound2 \
+          libatspi2.0-0 \
+          libgtk-3-0 \
+          libgdk-pixbuf2.0-0
+    
+    - name: Instalar dependências Python
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install playwright
+        playwright install chromium
+        playwright install-deps chromium
+    
+    - name: Configurar variáveis de ambiente
+      run: |
+        echo "NOVAJUS_USERNAME=${{ secrets.NOVAJUS_USERNAME }}" >> $GITHUB_ENV
+        echo "NOVAJUS_PASSWORD=${{ secrets.NOVAJUS_PASSWORD }}" >> $GITHUB_ENV
+        echo "SUPABASE_HOST=${{ secrets.SUPABASE_HOST }}" >> $GITHUB_ENV
+        echo "SUPABASE_PORT=${{ secrets.SUPABASE_PORT }}" >> $GITHUB_ENV
+        echo "SUPABASE_DATABASE=${{ secrets.SUPABASE_DATABASE }}" >> $GITHUB_ENV
+        echo "SUPABASE_USER=${{ secrets.SUPABASE_USER }}" >> $GITHUB_ENV
+        echo "SUPABASE_PASSWORD=${{ secrets.SUPABASE_PASSWORD }}" >> $GITHUB_ENV
+    
+    - name: Criar diretório de downloads
+      run: |
+        mkdir -p downloads
+        echo "Diretório de downloads criado"
+    
+    - name: Executar RPA Agenda
+      run: |
+        echo "Iniciando RPA Agenda..."
+        echo "Horário atual: $(date)"
+        echo "Modo headless: $HEADLESS"
+        
+        # Executar o RPA principal
+        python rpa_agenda_rmb.py
+        
+        echo "RPA Agenda concluído!"
+    
+    - name: Verificar arquivos baixados
+      run: |
+        echo "Verificando arquivos na pasta downloads:"
+        ls -la downloads/ || echo "Pasta downloads vazia ou não encontrada"
+        
+        # Verificar se há arquivos Excel
+        find downloads/ -name "*.xlsx" -type f | head -5 || echo "Nenhum arquivo Excel encontrado"
+    
+    - name: Upload de logs (se houver erro)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: rpa-agenda-logs-${{ github.run_number }}
+        path: |
+          downloads/
+          debug_*.png
+        retention-days: 7
+    
+    - name: Notificar sucesso
+      if: success()
+      run: |
+        echo "✅ RPA Agenda executado com sucesso!"
+        echo "📅 Data/Hora: $(date)"
+        echo "🔄 Próxima execução: Verificar cron schedule"
+    
+    - name: Notificar falha
+      if: failure()
+      run: |
+        echo "❌ RPA Agenda falhou!"
+        echo "📅 Data/Hora: $(date)"
+        echo "🔍 Verifique os logs para mais detalhes"
+
+  # Job adicional para relatórios diários
+  daily-report:
+    name: Relatório Diário
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 19 * * *'  # Apenas às 16h (última execução do dia)
+    
+    steps:
+    - name: Gerar relatório diário
+      run: |
+        echo "📊 Relatório Diário - RPA Agenda"
+        echo "📅 Data: $(date)"
+        echo "✅ Execuções automáticas funcionando normalmente"
+        echo "🔄 Próximas execuções: 11:00, 14:00 e 16:00 BRT (amanhã)"

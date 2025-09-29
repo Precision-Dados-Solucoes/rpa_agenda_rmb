@@ -2,14 +2,32 @@ name: RPA Agenda RMB - Execução Diária
 
 on:
   schedule:
-    - cron: "0 10 * * *"  # 07:00 BRT (UTC-3) = 10:00 UTC
+    # Executa às 11:00, 14:00 e 16:00 (horário de São Paulo)
+    # Cron: minuto hora dia mês dia_da_semana
+    # 0 14 * * * = 14:00 UTC (11:00 BRT) - Diariamente
+    # 0 17 * * * = 17:00 UTC (14:00 BRT) - Diariamente  
+    # 0 19 * * * = 19:00 UTC (16:00 BRT) - Diariamente
+    - cron: "0 14 * * *"  # 11:00 BRT (14:00 UTC)
+    - cron: "0 17 * * *"  # 14:00 BRT (17:00 UTC)
+    - cron: "0 19 * * *"  # 16:00 BRT (19:00 UTC)
   workflow_dispatch:  # permite rodar manualmente também
 
 jobs:
   rpa-execution:
     runs-on: ubuntu-latest
     
+    # Configurar timezone para São Paulo
+    defaults:
+      run:
+        shell: bash
+    
     steps:
+      - name: Configurar Timezone
+        run: |
+          sudo timedatectl set-timezone America/Sao_Paulo
+          echo "Timezone configurado: $(date)"
+          echo "Horário atual em São Paulo: $(TZ='America/Sao_Paulo' date)"
+      
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -39,6 +57,9 @@ jobs:
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> config.env
           echo "NOVAJUS_USERNAME=${{ secrets.NOVAJUS_USERNAME }}" >> config.env
           echo "NOVAJUS_PASSWORD=${{ secrets.NOVAJUS_PASSWORD }}" >> config.env
+          echo "HEADLESS=true" >> config.env
+          echo "CI=true" >> config.env
+          echo "GITHUB_ACTIONS=true" >> config.env
 
       - name: Test Supabase Connection
         run: |
@@ -77,9 +98,11 @@ jobs:
           echo "Exit code: ${{ steps.rpa.outputs.exit_code }}"
           echo "Date/Time: ${{ github.run_started_at }}"
           echo "Commit: ${{ github.sha }}"
+          echo "Horários de execução: 11:00, 14:00 e 16:00 BRT"
           if [ "${{ steps.rpa.outputs.exit_code }}" = "0" ]; then
             echo "Status: ✅ SUCCESS - RPA executed successfully!"
             echo "Check artifacts for downloaded files and logs."
+            echo "Próxima execução: Verificar cron schedule"
           else
             echo "Status: ❌ FAILED - RPA execution failed!"
             echo "Check logs for error details."
