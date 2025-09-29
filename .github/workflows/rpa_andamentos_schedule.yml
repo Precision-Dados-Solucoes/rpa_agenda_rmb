@@ -76,7 +76,21 @@ jobs:
         pip install -r requirements.txt
         pip install playwright
         playwright install chromium
-        playwright install-deps chromium
+        # Instalar dependências do Playwright manualmente (evitar libasound2)
+        sudo apt-get install -y \
+          libnss3 \
+          libatk-bridge2.0-0 \
+          libdrm2 \
+          libxkbcommon0 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxrandr2 \
+          libgbm1 \
+          libxss1 \
+          libasound2t64 \
+          libatspi2.0-0 \
+          libgtk-3-0 \
+          libgdk-pixbuf2.0-0
     
     - name: Configurar variáveis de ambiente
       run: |
