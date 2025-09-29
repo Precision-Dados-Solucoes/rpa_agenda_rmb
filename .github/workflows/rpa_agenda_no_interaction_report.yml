@@ -1,0 +1,144 @@
+name: RPA Relatório de Agenda sem Interação
+
+on:
+  schedule:
+    # Executa às 17:15 (horário de São Paulo) de segunda a sexta-feira
+    # Cron: minuto hora dia mês dia_da_semana
+    # 15 20 * * 1-5 = 20:15 UTC (17:15 BRT) - Segunda a Sexta
+    - cron: '15 20 * * 1-5'  # 17:15 BRT (20:15 UTC)
+  
+  # Permite execução manual
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Modo de teste (sem interface gráfica)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  # Configuração do fuso horário
+  TZ: America/Sao_Paulo
+  
+  # Configurações do RPA
+  HEADLESS: true
+  CI: true
+  GITHUB_ACTIONS: true
+
+jobs:
+  rpa-agenda-no-interaction:
+    name: Enviar Relatório de Agenda sem Interação
+    runs-on: ubuntu-latest
+    
+    # Configurar timezone
+    defaults:
+      run:
+        shell: bash
+    
+    steps:
+    - name: Configurar Timezone
+      run: |
+        sudo timedatectl set-timezone America/Sao_Paulo
+        echo "Timezone configurado: $(date)"
+    
+    - name: Checkout do código
+      uses: actions/checkout@v4
+      
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    
+    - name: Instalar dependências do sistema
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libnss3 \
+          libatk-bridge2.0-0 \
+          libdrm2 \
+          libxkbcommon0 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxrandr2 \
+          libgbm1 \
+          libxss1 \
+          libasound2t64 \
+          libatspi2.0-0 \
+          libgtk-3-0 \
+          libgdk-pixbuf2.0-0
+    
+    - name: Instalar dependências Python
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install playwright
+        playwright install chromium
+        # Instalar dependências do Playwright manualmente (evitar libasound2)
+        sudo apt-get install -y \
+          libnss3 \
+          libatk-bridge2.0-0 \
+          libdrm2 \
+          libxkbcommon0 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxrandr2 \
+          libgbm1 \
+          libxss1 \
+          libasound2t64 \
+          libatspi2.0-0 \
+          libgtk-3-0 \
+          libgdk-pixbuf2.0-0
+    
+    - name: Configurar variáveis de ambiente
+      run: |
+        echo "SUPABASE_HOST=${{ secrets.SUPABASE_HOST }}" >> $GITHUB_ENV
+        echo "SUPABASE_PORT=${{ secrets.SUPABASE_PORT }}" >> $GITHUB_ENV
+        echo "SUPABASE_DATABASE=${{ secrets.SUPABASE_DATABASE }}" >> $GITHUB_ENV
+        echo "SUPABASE_USER=${{ secrets.SUPABASE_USER }}" >> $GITHUB_ENV
+        echo "SUPABASE_PASSWORD=${{ secrets.SUPABASE_PASSWORD }}" >> $GITHUB_ENV
+        echo "GMAIL_USERNAME=${{ secrets.GMAIL_USERNAME }}" >> $GITHUB_ENV
+        echo "GMAIL_PASSWORD=${{ secrets.GMAIL_PASSWORD }}" >> $GITHUB_ENV
+    
+    - name: Executar Relatório de Agenda sem Interação
+      run: |
+        echo "Iniciando relatório de agenda sem interação..."
+        echo "Horário atual: $(date)"
+        echo "Destinatário: cleiton.sanches@precisionsolucoes.com"
+        echo "Critério: Itens com data de conclusão prevista para hoje sem andamentos"
+        
+        # Executar o script de relatório
+        python send_agenda_no_interaction_report.py
+        
+        echo "Relatório de agenda sem interação concluído!"
+    
+    - name: Verificar logs
+      run: |
+        echo "Verificando execução do relatório:"
+        echo "Data/Hora: $(date)"
+        echo "Status: Relatório de agenda sem interação executado"
+    
+    - name: Upload de logs (se houver erro)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: agenda-no-interaction-logs-${{ github.run_number }}
+        path: |
+          *.log
+          debug_*.png
+        retention-days: 7
+    
+    - name: Notificar sucesso
+      if: success()
+      run: |
+        echo "✅ Relatório de Agenda sem Interação executado com sucesso!"
+        echo "📅 Data/Hora: $(date)"
+        echo "📧 E-mail enviado para: cleiton.sanches@precisionsolucoes.com"
+        echo "🔄 Próxima execução: Segunda-feira às 17:15 BRT"
+    
+    - name: Notificar falha
+      if: failure()
+      run: |
+        echo "❌ Relatório de Agenda sem Interação falhou!"
+        echo "📅 Data/Hora: $(date)"
+        echo "🔍 Verifique os logs para mais detalhes"
