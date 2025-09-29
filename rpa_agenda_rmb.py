@@ -153,6 +153,11 @@ async def process_excel_file(file_path):
             df_processed['conclusao_efetiva_data'] = df['conclusao_efetiva'].apply(extract_date_from_datetime)
             print("✅ Campo 'conclusao_efetiva' processado → 'conclusao_efetiva_data'")
         
+        # Tratar campo 'cadastro' (dd/mm/aaaa hh:mm:ss) → formato aaaa/mm/dd
+        if 'cadastro' in df.columns:
+            df_processed['cadastro'] = df['cadastro'].apply(extract_date_from_datetime)
+            print("✅ Campo 'cadastro' processado → formato aaaa/mm/dd")
+        
         # 4. Gerar campo 'link' concatenado
         if 'id_legalone' in df_processed.columns:
             df_processed['link'] = df_processed['id_legalone'].apply(generate_link)
