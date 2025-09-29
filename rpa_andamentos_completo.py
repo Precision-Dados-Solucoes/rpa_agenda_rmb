@@ -224,7 +224,7 @@ async def process_dataframe_with_upsert(df, table_name):
             try:
                 # Verificar se o registro ja existe
                 existing_record = await conn.fetchrow("""
-                    SELECT id_andamento FROM {} WHERE id_andamento = $1
+                    SELECT id_andamento_legalone FROM {} WHERE id_andamento_legalone = $1
                 """.format(table_name), row['id_andamento_legalone'])
                 
                 if existing_record:
@@ -236,7 +236,7 @@ async def process_dataframe_with_upsert(df, table_name):
                             subtipo_andamento = $3,
                             descricao_andamento = $4,
                             cadastro_andamento = $5
-                        WHERE id_andamento = $6
+                        WHERE id_andamento_legalone = $6
                     """.format(table_name), 
                         row['id_agenda_legalone'],
                         row['tipo_andamento'],
@@ -246,13 +246,13 @@ async def process_dataframe_with_upsert(df, table_name):
                         row['id_andamento_legalone']
                     )
                     updated_count += 1
-                    print(f"Registro atualizado: id_andamento = {row['id_andamento_legalone']}")
+                    print(f"Registro atualizado: id_andamento_legalone = {row['id_andamento_legalone']}")
                 else:
                     # INSERIR novo registro
                     await conn.execute("""
                         INSERT INTO {} (
                             id_agenda_legalone, 
-                            id_andamento, 
+                            id_andamento_legalone, 
                             tipo_andamento, 
                             subtipo_andamento, 
                             descricao_andamento, 
@@ -267,7 +267,7 @@ async def process_dataframe_with_upsert(df, table_name):
                         row['cadastro_andamento']
                     )
                     inserted_count += 1
-                    print(f"Registro inserido: id_andamento = {row['id_andamento_legalone']}")
+                    print(f"Registro inserido: id_andamento_legalone = {row['id_andamento_legalone']}")
                     
             except Exception as e:
                 print(f"Erro ao processar registro {index}: {e}")
