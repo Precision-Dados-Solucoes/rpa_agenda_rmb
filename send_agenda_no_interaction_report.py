@@ -17,9 +17,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configurações do Gmail
-GMAIL_USERNAME = os.getenv("GMAIL_USERNAME", "cleiton.precisionsolucoes@gmail.com")
-GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD", "kpql oddf qnmy lcvc")
-RECIPIENT_EMAIL = "cleiton.sanches@precisionsolucoes.com"
+GMAIL_USERNAME = os.getenv("GMAIL_USERNAME")
+GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
+RECIPIENT_EMAILS = [
+    "cleiton.sanches@precisionsolucoes.com",
+    "controladoria@gestaogt.onmicrosoft.com"
+]
 
 async def connect_to_supabase():
     """
@@ -135,7 +138,7 @@ def create_email_content(agenda_items):
             
             <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
                 <p style="margin: 0; font-size: 16px; color: #856404;">
-                    Aqui estão os itens de agenda com data de conclusão prevista para hoje, que ainda não receberam interações.<br>
+                    Aqui estão os itens de agenda com data de conclusão prevista para hoje, ainda com status Pendente e que não receberam andamentos até o momento.<br>
                     Por favor, verifique...
                 </p>
             </div>
@@ -199,11 +202,19 @@ def send_email(subject, content):
     """
     print("Enviando e-mail...")
     
+    # Verificar se as credenciais estão configuradas
+    if not GMAIL_USERNAME or not GMAIL_PASSWORD:
+        print("ERRO: GMAIL_USERNAME ou GMAIL_PASSWORD não configurados!")
+        print("Configure os secrets no GitHub Actions:")
+        print("- GMAIL_USERNAME")
+        print("- GMAIL_PASSWORD")
+        return False
+    
     try:
         # Criar mensagem
         msg = MIMEMultipart('alternative')
         msg['From'] = GMAIL_USERNAME
-        msg['To'] = RECIPIENT_EMAIL
+        msg['To'] = ", ".join(RECIPIENT_EMAILS)
         msg['Subject'] = subject
         
         # Adicionar corpo HTML
@@ -215,9 +226,9 @@ def send_email(subject, content):
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls(context=context)
             server.login(GMAIL_USERNAME, GMAIL_PASSWORD)
-            server.sendmail(GMAIL_USERNAME, RECIPIENT_EMAIL, msg.as_string())
+            server.sendmail(GMAIL_USERNAME, RECIPIENT_EMAILS, msg.as_string())
         
-        print(f"E-mail enviado com sucesso para {RECIPIENT_EMAIL}!")
+        print(f"E-mail enviado com sucesso para {', '.join(RECIPIENT_EMAILS)}!")
         return True
         
     except Exception as e:
