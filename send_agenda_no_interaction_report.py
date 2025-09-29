@@ -20,8 +20,7 @@ load_dotenv()
 GMAIL_USERNAME = os.getenv("GMAIL_USERNAME", "cleiton.precisionsolucoes@gmail.com")
 GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD", "kpql oddf qnmy lcvc")
 RECIPIENT_EMAILS = [
-    "cleiton.sanches@precisionsolucoes.com",
-    "controladoria@gestaogt.onmicrosoft.com"
+    "cleiton.sanches@precisionsolucoes.com"
 ]
 
 async def connect_to_supabase():
