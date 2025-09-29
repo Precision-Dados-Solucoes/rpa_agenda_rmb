@@ -200,6 +200,9 @@ def send_email(subject, content):
     Envia o e-mail com o relatório
     """
     print("Enviando e-mail...")
+    print(f"DEBUG - GMAIL_USERNAME: {GMAIL_USERNAME}")
+    print(f"DEBUG - GMAIL_PASSWORD configurado: {'Sim' if GMAIL_PASSWORD else 'Não'}")
+    print(f"DEBUG - Destinatários: {RECIPIENT_EMAILS}")
     
     try:
         # Criar mensagem
