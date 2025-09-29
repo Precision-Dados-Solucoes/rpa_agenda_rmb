@@ -220,7 +220,8 @@ def send_email(subject, content):
             server.login(GMAIL_USERNAME, GMAIL_PASSWORD)
             server.sendmail(GMAIL_USERNAME, RECIPIENT_EMAILS, msg.as_string())
         
-        print(f"E-mail enviado com sucesso para {', '.join(RECIPIENT_EMAILS)}!")
+        print(f"E-mail enviado com sucesso para {len(RECIPIENT_EMAILS)} destinatários!")
+        print(f"Destinatários: {', '.join(RECIPIENT_EMAILS)}")
         return True
         
     except Exception as e:
