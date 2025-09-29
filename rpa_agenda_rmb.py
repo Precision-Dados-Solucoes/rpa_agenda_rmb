@@ -557,15 +557,15 @@ async def insert_data_to_supabase(df, table_name):
                 host=host, 
                 port=int(port), 
                 database=database,
-                command_timeout=120,  # Aumentado para 120 segundos
+                command_timeout=30,  # Reduzido para 30 segundos
                 statement_cache_size=0,  # 🔑 CRÍTICO: Desabilita prepared statements para pgbouncer
                 server_settings={
-                    'application_name': 'rpa_agenda_rmb_github_actions',
-                    'tcp_keepalives_idle': '600',
-                    'tcp_keepalives_interval': '30',
+                    'application_name': 'rpa_agenda_rmb',
+                    'tcp_keepalives_idle': '60',
+                    'tcp_keepalives_interval': '10',
                     'tcp_keepalives_count': '3',
-                    'statement_timeout': '300000',  # 5 minutos
-                    'idle_in_transaction_session_timeout': '300000'
+                    'statement_timeout': '60000',  # 1 minuto
+                    'idle_in_transaction_session_timeout': '60000'
                 }
             )
             print("✅ Conexão com o Supabase estabelecida com sucesso!")
