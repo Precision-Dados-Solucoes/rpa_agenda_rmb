@@ -17,8 +17,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configurações do Gmail
-GMAIL_USERNAME = os.getenv("GMAIL_USERNAME")
-GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
+GMAIL_USERNAME = os.getenv("GMAIL_USERNAME", "cleiton.precisionsolucoes@gmail.com")
+GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD", "kpql oddf qnmy lcvc")
 RECIPIENT_EMAILS = [
     "cleiton.sanches@precisionsolucoes.com",
     "controladoria@gestaogt.onmicrosoft.com"
@@ -201,14 +201,6 @@ def send_email(subject, content):
     Envia o e-mail com o relatório
     """
     print("Enviando e-mail...")
-    
-    # Verificar se as credenciais estão configuradas
-    if not GMAIL_USERNAME or not GMAIL_PASSWORD:
-        print("ERRO: GMAIL_USERNAME ou GMAIL_PASSWORD não configurados!")
-        print("Configure os secrets no GitHub Actions:")
-        print("- GMAIL_USERNAME")
-        print("- GMAIL_PASSWORD")
-        return False
     
     try:
         # Criar mensagem
