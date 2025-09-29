@@ -58,7 +58,7 @@ async def close_any_known_popup(page):
     return False
 
 def extract_date_from_datetime(datetime_str):
-    """Extrai a data de uma string no formato dd/mm/aaaa hh:mm:ss e converte para aaaa/mm/dd"""
+    """Extrai a data de uma string no formato dd/mm/aaaa hh:mm:ss e converte para aaaa-mm-dd"""
     if pd.isna(datetime_str) or datetime_str == '':
         return None
     
@@ -66,7 +66,7 @@ def extract_date_from_datetime(datetime_str):
         dt = pd.to_datetime(datetime_str, format='%d/%m/%Y %H:%M:%S', errors='coerce')
         if pd.isna(dt):
             return None
-        return dt.strftime('%Y/%m/%d')
+        return dt.strftime('%Y-%m-%d')
     except:
         return None
 
