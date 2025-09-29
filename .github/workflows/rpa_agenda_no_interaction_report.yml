@@ -133,7 +133,8 @@ jobs:
       run: |
         echo "✅ Relatório de Agenda sem Interação executado com sucesso!"
         echo "📅 Data/Hora: $(date)"
-        echo "📧 E-mail enviado para: cleiton.sanches@precisionsolucoes.com"
+        echo "   - cleiton.sanches@precisionsolucoes.com"
+        echo "   - controladoria@gestaogt.onmicrosoft.com"
         echo "🔄 Próxima execução: Segunda-feira às 17:15 BRT"
     
     - name: Notificar falha
