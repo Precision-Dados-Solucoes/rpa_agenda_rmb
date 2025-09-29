@@ -27,12 +27,12 @@ async def connect_to_supabase():
     """
     print("Conectando ao Supabase...")
     
-    # Credenciais do Supabase (hardcoded para teste)
-    host = "db.dhfmqumwizrwdbjnbcua.supabase.co"
-    port = "5432"
-    database = "postgres"
-    user = "postgres"
-    password = "L7CEsmTv@vZKfpN"
+    # Credenciais do Supabase das variáveis de ambiente
+    host = os.getenv("SUPABASE_HOST", "db.dhfmqumwizrwdbjnbcua.supabase.co")
+    port = os.getenv("SUPABASE_PORT", "5432")
+    database = os.getenv("SUPABASE_DATABASE", "postgres")
+    user = os.getenv("SUPABASE_USER", "postgres")
+    password = os.getenv("SUPABASE_PASSWORD", "L7CEsmTv@vZKfpN")
     
     print(f"Conectando: {user}@{host}:{port}/{database}")
     
