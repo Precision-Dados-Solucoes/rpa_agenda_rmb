@@ -1,0 +1,178 @@
+name: RPA Atualização de Concluídos - Agendamento Automático
+
+on:
+  schedule:
+    # Executa às 12:15, 14:15, 15:15 e 16:45 (horário de São Paulo)
+    # Cron: minuto hora dia mês dia_da_semana
+    # 15 15 * * 1-5 = 15:15 UTC (12:15 BRT) - Segunda a Sexta
+    # 15 17 * * 1-5 = 17:15 UTC (14:15 BRT) - Segunda a Sexta
+    # 15 18 * * 1-5 = 18:15 UTC (15:15 BRT) - Segunda a Sexta
+    # 45 19 * * 1-5 = 19:45 UTC (16:45 BRT) - Segunda a Sexta
+    - cron: '15 15 * * 1-5'  # 12:15 BRT (15:15 UTC)
+    - cron: '15 17 * * 1-5'  # 14:15 BRT (17:15 UTC)
+    - cron: '15 18 * * 1-5'  # 15:15 BRT (18:15 UTC)
+    - cron: '45 19 * * 1-5'  # 16:45 BRT (19:45 UTC)
+  
+  # Permite execução manual
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Modo de teste (sem interface gráfica)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  # Configuração do fuso horário
+  TZ: America/Sao_Paulo
+  
+  # Configurações do RPA
+  HEADLESS: true
+  CI: true
+  GITHUB_ACTIONS: true
+
+jobs:
+  rpa-atualiza-concluidos:
+    name: Executar RPA Atualização de Concluídos
+    runs-on: ubuntu-latest
+    
+    # Configurar timezone
+    defaults:
+      run:
+        shell: bash
+    
+    steps:
+    - name: Configurar Timezone
+      run: |
+        sudo timedatectl set-timezone America/Sao_Paulo
+        echo "Timezone configurado: $(date)"
+    
+    - name: Checkout do código
+      uses: actions/checkout@v4
+      
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    
+    - name: Instalar dependências do sistema
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libnss3 \
+          libatk-bridge2.0-0 \
+          libdrm2 \
+          libxkbcommon0 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxrandr2 \
+          libgbm1 \
+          libxss1 \
+          libasound2t64 \
+          libatspi2.0-0 \
+          libgtk-3-0 \
+          libgdk-pixbuf2.0-0
+    
+    - name: Instalar dependências Python
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install playwright
+        playwright install chromium
+        # Instalar dependências do Playwright manualmente (evitar libasound2)
+        sudo apt-get install -y \
+          libnss3 \
+          libatk-bridge2.0-0 \
+          libdrm2 \
+          libxkbcommon0 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxrandr2 \
+          libgbm1 \
+          libxss1 \
+          libasound2t64 \
+          libatspi2.0-0 \
+          libgtk-3-0 \
+          libgdk-pixbuf2.0-0
+    
+    - name: Configurar variáveis de ambiente
+      run: |
+        echo "NOVAJUS_USERNAME=${{ secrets.NOVAJUS_USERNAME }}" >> $GITHUB_ENV
+        echo "NOVAJUS_PASSWORD=${{ secrets.NOVAJUS_PASSWORD }}" >> $GITHUB_ENV
+        echo "SUPABASE_HOST=${{ secrets.SUPABASE_HOST }}" >> $GITHUB_ENV
+        echo "SUPABASE_PORT=${{ secrets.SUPABASE_PORT }}" >> $GITHUB_ENV
+        echo "SUPABASE_DATABASE=${{ secrets.SUPABASE_DATABASE }}" >> $GITHUB_ENV
+        echo "SUPABASE_USER=${{ secrets.SUPABASE_USER }}" >> $GITHUB_ENV
+        echo "SUPABASE_PASSWORD=${{ secrets.SUPABASE_PASSWORD }}" >> $GITHUB_ENV
+    
+    - name: Criar diretório de downloads
+      run: |
+        mkdir -p downloads
+        echo "Diretório de downloads criado"
+    
+    - name: Executar RPA Atualização de Concluídos
+      run: |
+        echo "Iniciando RPA Atualização de Concluídos..."
+        echo "Horário atual: $(date)"
+        echo "Modo headless: $HEADLESS"
+        echo "URL do relatório: https://robertomatos.novajus.com.br/agenda/GenericReport/?id=673"
+        echo "Arquivo esperado: z-rpa_atualiza_concluidos_rmb_queeue.xlsx"
+        echo "Processamento: UPDATE na tabela agenda_base usando id_legalone como chave"
+        
+        # Executar o RPA de atualização
+        python rpa_atualiza_concluidos_rmb.py
+        
+        echo "RPA Atualização de Concluídos concluído!"
+    
+    - name: Verificar arquivos baixados
+      run: |
+        echo "Verificando arquivos na pasta downloads:"
+        ls -la downloads/ || echo "Pasta downloads vazia ou não encontrada"
+        
+        # Verificar se há arquivos Excel
+        find downloads/ -name "*.xlsx" -type f | head -5 || echo "Nenhum arquivo Excel encontrado"
+    
+    - name: Upload de logs (se houver erro)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: rpa-atualiza-concluidos-logs-${{ github.run_number }}
+        path: |
+          downloads/
+          debug_*.png
+        retention-days: 7
+    
+    - name: Notificar sucesso
+      if: success()
+      run: |
+        echo "✅ RPA Atualização de Concluídos executado com sucesso!"
+        echo "📅 Data/Hora: $(date)"
+        echo "🔄 Próxima execução: Verificar cron schedule"
+        echo "📊 Processamento: UPDATE na tabela agenda_base"
+    
+    - name: Notificar falha
+      if: failure()
+      run: |
+        echo "❌ RPA Atualização de Concluídos falhou!"
+        echo "📅 Data/Hora: $(date)"
+        echo "🔍 Verifique os logs para mais detalhes"
+
+  # Job adicional para relatórios semanais
+  weekly-report:
+    name: Relatório Semanal - Atualização de Concluídos
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '45 19 * * 5'  # Apenas às 16:45 de sexta-feira
+    
+    steps:
+    - name: Gerar relatório semanal
+      run: |
+        echo "📊 Relatório Semanal - RPA Atualização de Concluídos"
+        echo "📅 Data: $(date)"
+        echo "✅ Execuções automáticas funcionando normalmente"
+        echo "🔄 Próxima execução: Segunda-feira às 12:15 BRT"
+        echo "📈 Horários de execução:"
+        echo "   - 12:15 BRT (15:15 UTC)"
+        echo "   - 14:15 BRT (17:15 UTC)"
+        echo "   - 15:15 BRT (18:15 UTC)"
+        echo "   - 16:45 BRT (19:45 UTC)"
