@@ -85,13 +85,25 @@ async def get_agenda_no_interaction_data(conn):
     ORDER BY a.conclusao_prevista_data ASC
     """
     
+    # Query para contar total de itens com data de conclusão no dia
+    count_query = """
+    SELECT COUNT(*) as total
+    FROM agenda_base 
+    WHERE DATE(conclusao_prevista_data) = $1
+    """
+    
     try:
         rows = await conn.fetch(query, today)
+        count_result = await conn.fetchrow(count_query, today)
+        total_items_today = count_result['total'] if count_result else 0
+        
         print(f"Encontrados {len(rows)} itens de agenda sem interacoes")
-        return rows
+        print(f"Total de itens com data de conclusao no dia: {total_items_today}")
+        
+        return rows, total_items_today
     except Exception as e:
         print(f"Erro ao buscar dados: {e}")
-        return []
+        return [], 0
 
 def format_date_br(date_str):
     """
@@ -138,7 +150,7 @@ def format_agenda_item(item, is_last=False):
     {separator}
     """
 
-def create_email_content(agenda_items):
+def create_email_content(agenda_items, total_items_today):
     """
     Cria o conteúdo do e-mail com os agendamentos sem interações
     """
@@ -172,6 +184,7 @@ def create_email_content(agenda_items):
             <div style="background-color: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0;">
                 <h3 style="color: #27ae60; margin-top: 0;">Resumo</h3>
                 <p><strong>Total de itens sem interação:</strong> {len(agenda_items)}</p>
+                <p><strong>Total de itens com data de conclusão no dia:</strong> {total_items_today}</p>
                 <p><strong>Data de conclusão prevista:</strong> {today.strftime('%d/%m/%Y')}</p>
                 <p><strong>Status:</strong> Sem andamentos vinculados</p>
                 <p><strong>Data de consulta:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
@@ -260,10 +273,10 @@ async def main():
     
     try:
         # Buscar dados
-        agenda_items = await get_agenda_no_interaction_data(conn)
+        agenda_items, total_items_today = await get_agenda_no_interaction_data(conn)
         
         # Criar conteúdo do e-mail
-        subject, content = create_email_content(agenda_items)
+        subject, content = create_email_content(agenda_items, total_items_today)
         
         # Enviar e-mail
         success = send_email(subject, content)
