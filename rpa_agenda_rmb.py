@@ -1051,6 +1051,17 @@ async def run():
                 
                 if success:
                     print("✅ Dados inseridos no Supabase com sucesso!")
+                    
+                    # Limpar arquivo baixado após processamento bem-sucedido
+                    try:
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            print(f"🗑️ Arquivo baixado removido: {file_path}")
+                        else:
+                            print(f"⚠️ Arquivo não encontrado para remoção: {file_path}")
+                    except Exception as e:
+                        print(f"⚠️ Erro ao remover arquivo {file_path}: {e}")
+                        
                 else:
                     print("❌ Falha ao inserir dados no Supabase (todas as tentativas falharam).")
                     print("💾 Salvando dados localmente como backup...")
