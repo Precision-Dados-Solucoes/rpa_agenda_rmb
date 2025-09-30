@@ -121,15 +121,15 @@ def format_agenda_item(item, is_last=False):
     return f"""
     <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background-color: #f9f9f9; font-family: Calibri, Arial, sans-serif;">
         <h3 style="color: #2c3e50; margin-top: 0; font-family: Calibri, Arial, sans-serif;">{item['compromisso_tarefa'] or 'N/A'}</h3>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Executante:</strong> <strong>{item['executante'] or 'N/A'}</strong></p>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Id da Agenda:</strong> {item['id_legalone'] or 'N/A'}</p>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Tipo / Subtipo:</strong> {tipo_subtipo}</p>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Etiqueta:</strong> {item['etiqueta'] or 'N/A'}</p>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Pasta vinculada:</strong> {item['pasta_proc'] or 'N/A'}</p>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Data do cadastro:</strong> {format_date_br(item['cadastro'])}</p>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Data de conclusao prevista:</strong> {format_date_br(item['conclusao_prevista_data'])}</p>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Descricao:</strong> {item['descricao'] or 'N/A'}</p>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Link:</strong> <a href="{item['link'] or '#'}" target="_blank" style="font-family: Calibri, Arial, sans-serif;">{item['link'] or 'N/A'}</a></p>
+        <p style="font-family: Calibri, Arial, sans-serif; margin: 3px 0; line-height: 1.2;"><strong>Executante:</strong> <strong>{item['executante'] or 'N/A'}</strong></p>
+        <p style="font-family: Calibri, Arial, sans-serif; margin: 3px 0; line-height: 1.2;"><strong>Id da Agenda:</strong> {item['id_legalone'] or 'N/A'}</p>
+        <p style="font-family: Calibri, Arial, sans-serif; margin: 3px 0; line-height: 1.2;"><strong>Tipo / Subtipo:</strong> {tipo_subtipo}</p>
+        <p style="font-family: Calibri, Arial, sans-serif; margin: 3px 0; line-height: 1.2;"><strong>Etiqueta:</strong> {item['etiqueta'] or 'N/A'}</p>
+        <p style="font-family: Calibri, Arial, sans-serif; margin: 3px 0; line-height: 1.2;"><strong>Pasta vinculada:</strong> {item['pasta_proc'] or 'N/A'}</p>
+        <p style="font-family: Calibri, Arial, sans-serif; margin: 3px 0; line-height: 1.2;"><strong>Data do cadastro:</strong> {format_date_br(item['cadastro'])}</p>
+        <p style="font-family: Calibri, Arial, sans-serif; margin: 3px 0; line-height: 1.2;"><strong>Data de conclusao prevista:</strong> {format_date_br(item['conclusao_prevista_data'])}</p>
+        <p style="font-family: Calibri, Arial, sans-serif; margin: 3px 0; line-height: 1.2;"><strong>Descricao:</strong> {item['descricao'] or 'N/A'}</p>
+        <p style="font-family: Calibri, Arial, sans-serif; margin: 3px 0; line-height: 1.2;"><strong>Link:</strong> <a href="{item['link'] or '#'}" target="_blank" style="font-family: Calibri, Arial, sans-serif;">{item['link'] or 'N/A'}</a></p>
     </div>
     {separator}
     """
@@ -149,8 +149,8 @@ def create_email_content(agenda_items):
             <h2 style="color: #2c3e50; text-align: center;">Novos Agendamentos do Dia</h2>
             <p style="text-align: center; color: #666;">{today.strftime('%d/%m/%Y')}</p>
             
-            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #007bff;">
-                <p style="margin: 0; font-size: 16px; color: #333;">
+            <div style="background-color: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #27ae60;">
+                <p style="margin: 0; font-size: 14px; color: #000000; font-family: Calibri, Arial, sans-serif;">
                     Aqui estão os novos agendamentos realizados pela equipe de controladoria hoje, até as 17:29h.<br>
                     Qualquer dúvida, seguir o procedimento padrão.
                 </p>
@@ -166,10 +166,10 @@ def create_email_content(agenda_items):
             </div>
             
             <div style="background-color: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: #27ae60; margin-top: 0;">Resumo</h3>
-                <p><strong>Total de agendamentos:</strong> {len(agenda_items)}</p>
-                <p><strong>Status:</strong> Pendente</p>
-                <p><strong>Data de consulta:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
+                <h3 style="color: #27ae60; margin-top: 0; font-family: Calibri, Arial, sans-serif;">Resumo</h3>
+                <p style="font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 5px 0; line-height: 1.3;"><strong>Total de agendamentos:</strong> {len(agenda_items)}</p>
+                <p style="font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 5px 0; line-height: 1.3;"><strong>Status:</strong> Pendente</p>
+                <p style="font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 5px 0; line-height: 1.3;"><strong>Data de consulta:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
             </div>
             
             <div style="text-align: center; margin: 20px 0; color: #666;">
