@@ -89,6 +89,23 @@ async def get_daily_agenda_data(conn):
         print(f"Erro ao buscar dados: {e}")
         return []
 
+def format_date_br(date_str):
+    """
+    Converte data do formato aaaa-mm-dd para dd/mm/aaaa
+    """
+    if not date_str or date_str == 'N/A':
+        return 'N/A'
+    try:
+        from datetime import datetime
+        if isinstance(date_str, str):
+            # Se for string no formato aaaa-mm-dd
+            if len(date_str) == 10 and date_str.count('-') == 2:
+                dt = datetime.strptime(date_str, '%Y-%m-%d')
+                return dt.strftime('%d/%m/%Y')
+        return str(date_str)
+    except:
+        return str(date_str)
+
 def format_agenda_item(item, is_last=False):
     """
     Formata um item de agendamento para o e-mail
@@ -109,8 +126,8 @@ def format_agenda_item(item, is_last=False):
         <p style="font-family: Calibri, Arial, sans-serif;"><strong>Tipo / Subtipo:</strong> {tipo_subtipo}</p>
         <p style="font-family: Calibri, Arial, sans-serif;"><strong>Etiqueta:</strong> {item['etiqueta'] or 'N/A'}</p>
         <p style="font-family: Calibri, Arial, sans-serif;"><strong>Pasta vinculada:</strong> {item['pasta_proc'] or 'N/A'}</p>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Data do cadastro:</strong> {item['cadastro'] or 'N/A'}</p>
-        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Data de conclusao prevista:</strong> {item['conclusao_prevista_data'] or 'N/A'}</p>
+        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Data do cadastro:</strong> {format_date_br(item['cadastro'])}</p>
+        <p style="font-family: Calibri, Arial, sans-serif;"><strong>Data de conclusao prevista:</strong> {format_date_br(item['conclusao_prevista_data'])}</p>
         <p style="font-family: Calibri, Arial, sans-serif;"><strong>Descricao:</strong> {item['descricao'] or 'N/A'}</p>
         <p style="font-family: Calibri, Arial, sans-serif;"><strong>Link:</strong> <a href="{item['link'] or '#'}" target="_blank" style="font-family: Calibri, Arial, sans-serif;">{item['link'] or 'N/A'}</a></p>
     </div>
