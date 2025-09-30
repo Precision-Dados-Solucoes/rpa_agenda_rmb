@@ -104,7 +104,7 @@ jobs:
       run: |
         echo "Iniciando relatório de agenda sem interação..."
         echo "Horário atual: $(date)"
-        echo "Destinatários: cleiton.sanches@precisionsolucoes.com"
+        echo "Destinatários: cleiton.sanches@precisionsolucoes.com, controladoria@gestaogt.onmicrosoft.com"
         echo "Critério: Itens com data de conclusão prevista para hoje sem andamentos"
         
         # Executar o script de relatório
@@ -133,7 +133,9 @@ jobs:
       run: |
         echo "✅ Relatório de Agenda sem Interação executado com sucesso!"
         echo "📅 Data/Hora: $(date)"
-        echo "📧 E-mail enviado para: cleiton.sanches@precisionsolucoes.com"
+        echo "📧 E-mails enviados para:"
+        echo "   - cleiton.sanches@precisionsolucoes.com"
+        echo "   - controladoria@gestaogt.onmicrosoft.com"
         echo "🔄 Próxima execução: Segunda-feira às 17:15 BRT"
     
     - name: Notificar falha
