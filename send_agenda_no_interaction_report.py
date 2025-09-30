@@ -56,13 +56,13 @@ async def connect_to_supabase():
 
 async def get_agenda_no_interaction_data(conn):
     """
-    Busca itens de agenda sem interações (sem andamentos vinculados)
+    Busca itens de agenda com status Pendente que não tenham andamentos de Produção
     """
-    print("Buscando itens de agenda sem interacoes...")
+    print("Buscando itens de agenda sem interacoes (status Pendente, sem andamento de Producao)...")
     
     today = date.today()
     
-    # Query para buscar itens sem andamentos vinculados
+    # Query para buscar itens com status Pendente que não tenham andamentos do tipo "1. Produzido"
     query = """
     SELECT 
         a.id_legalone,
@@ -78,18 +78,21 @@ async def get_agenda_no_interaction_data(conn):
         a.descricao,
         a.link
     FROM agenda_base a
-    LEFT JOIN andamento_base an ON a.id_legalone = an.id_agenda_legalone
+    LEFT JOIN andamento_base an ON a.id_legalone = an.id_agenda_legalone 
+        AND an.tipo_andamento = '1. Produzido'
     WHERE DATE(a.conclusao_prevista_data) = $1 
     AND a.conclusao_efetiva_data IS NULL
+    AND a.status = 'Pendente'
     AND an.id_agenda_legalone IS NULL
     ORDER BY a.conclusao_prevista_data ASC
     """
     
-    # Query para contar total de itens com data de conclusão no dia
+    # Query para contar total de itens com data de conclusão no dia e status Pendente
     count_query = """
     SELECT COUNT(*) as total
     FROM agenda_base 
     WHERE DATE(conclusao_prevista_data) = $1
+    AND status = 'Pendente'
     """
     
     try:
@@ -167,7 +170,7 @@ def create_email_content(agenda_items, total_items_today):
             
             <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
                 <p style="margin: 0; font-size: 14px; color: #000000; font-family: Calibri, Arial, sans-serif;">
-                    Aqui estão os itens de agenda com data de conclusão prevista para hoje, ainda com status Pendente e que não receberam andamentos até o momento.<br>
+                    Aqui estão os itens de agenda com data de conclusão prevista para hoje, com status Pendente e que não receberam andamentos de Produção.<br>
                     Por favor, verifique...
                 </p>
             </div>
@@ -186,7 +189,7 @@ def create_email_content(agenda_items, total_items_today):
                 <p style="font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 5px 0; line-height: 1.3;"><strong>Total de itens sem interação:</strong> {len(agenda_items)}</p>
                 <p style="font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 5px 0; line-height: 1.3;"><strong>Total de itens com data de conclusão no dia:</strong> {total_items_today}</p>
                 <p style="font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 5px 0; line-height: 1.3;"><strong>Data de conclusão prevista:</strong> {today.strftime('%d/%m/%Y')}</p>
-                <p style="font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 5px 0; line-height: 1.3;"><strong>Status:</strong> Sem andamentos vinculados</p>
+                <p style="font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 5px 0; line-height: 1.3;"><strong>Status:</strong> Pendente (sem andamento de Produção)</p>
                 <p style="font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 5px 0; line-height: 1.3;"><strong>Data de consulta:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
             </div>
             
@@ -207,7 +210,7 @@ def create_email_content(agenda_items, total_items_today):
         content += """
         <div style="background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0;">
             <h3 style="color: #155724; margin-top: 0;">Nenhum item encontrado</h3>
-            <p>Todos os itens de agenda com data de conclusão prevista para hoje já possuem andamentos vinculados.</p>
+            <p>Todos os itens de agenda com status Pendente e data de conclusão prevista para hoje já possuem andamentos de Produção.</p>
         </div>
         """
     
