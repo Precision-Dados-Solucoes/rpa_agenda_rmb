@@ -316,28 +316,52 @@ def insert_data_to_supabase_psycopg2(df, table_name):
         count_before = cursor.fetchone()[0]
         print(f"📊 Registros existentes: {count_before}")
         
-        # Inserir dados
+        # Processar dados com UPSERT
         columns_df = df.columns.tolist()
-        columns_sql = ", ".join(f'"{col}"' for col in columns_df)
-        placeholders = ", ".join(["%s"] * len(columns_df))
-        insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
+        updated_count = 0
+        inserted_count = 0
         
-        print(f"📊 Inserindo {len(df)} registros...")
+        print(f"📊 Processando {len(df)} registros com UPSERT...")
         
-        # Inserir em lotes
-        batch_size = 100
-        total_inserted = 0
-        
-        for i in range(0, len(df), batch_size):
-            batch_df = df.iloc[i:i+batch_size]
-            print(f"📦 Lote {i//batch_size + 1}/{(len(df)-1)//batch_size + 1}")
+        # Processar cada registro com UPSERT
+        for index, row in df.iterrows():
+            id_legalone = row.get('id_legalone')
+            if not id_legalone:
+                print(f"⚠️ Linha {index}: id_legalone não encontrado, pulando...")
+                continue
             
-            for index, row in batch_df.iterrows():
+            # Verificar se o registro já existe
+            check_query = f"SELECT id_legalone FROM {table_name} WHERE id_legalone = %s"
+            cursor.execute(check_query, (id_legalone,))
+            existing_record = cursor.fetchone()
+            
+            if existing_record:
+                # ATUALIZAR registro existente
+                set_clauses = []
+                values = []
+                
+                for col in columns_df:
+                    if col != 'id_legalone':  # Não incluir id_legalone no SET
+                        set_clauses.append(f"{col} = %s")
+                        values.append(None if pd.isna(row[col]) else row[col])
+                
+                values.append(id_legalone)  # Adicionar id_legalone para WHERE
+                
+                update_query = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE id_legalone = %s"
+                cursor.execute(update_query, values)
+                updated_count += 1
+                print(f"✅ Registro {id_legalone} atualizado")
+            else:
+                # INSERIR novo registro
+                columns_sql = ", ".join(f'"{col}"' for col in columns_df)
+                placeholders = ", ".join(["%s"] * len(columns_df))
+                insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
+                
                 values = tuple(row.values)
-                # Converter NaN para None
                 cleaned_values = tuple(None if pd.isna(v) else v for v in values)
                 cursor.execute(insert_query, cleaned_values)
-                total_inserted += 1
+                inserted_count += 1
+                print(f"✅ Registro {id_legalone} inserido")
         
         # Commit das alterações
         conn.commit()
@@ -345,7 +369,7 @@ def insert_data_to_supabase_psycopg2(df, table_name):
         # Verificar resultado
         cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
         count_after = cursor.fetchone()[0]
-        print(f"✅ Inserção concluída! Total inserido: {total_inserted}")
+        print(f"✅ UPSERT concluído! {updated_count} atualizados, {inserted_count} inseridos")
         print(f"📊 Registros: {count_before} → {count_after}")
         
         cursor.close()
@@ -412,32 +436,56 @@ async def insert_data_to_supabase_connection_string(df, table_name):
         count_before = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
         print(f"📊 Registros existentes: {count_before}")
         
-        # Inserir dados
+        # Processar dados com UPSERT
         columns_df = df.columns.tolist()
-        columns_sql = ", ".join(f'"{col}"' for col in columns_df)
-        placeholders = ", ".join(f"${i+1}" for i in range(len(columns_df)))
-        insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
+        updated_count = 0
+        inserted_count = 0
         
-        print(f"📊 Inserindo {len(df)} registros...")
-        
-        # Inserir em lotes
-        batch_size = 100
-        total_inserted = 0
+        print(f"📊 Processando {len(df)} registros com UPSERT...")
         
         async with conn.transaction():
-            for i in range(0, len(df), batch_size):
-                batch_df = df.iloc[i:i+batch_size]
-                print(f"📦 Lote {i//batch_size + 1}/{(len(df)-1)//batch_size + 1}")
+            for index, row in df.iterrows():
+                id_legalone = row.get('id_legalone')
+                if not id_legalone:
+                    print(f"⚠️ Linha {index}: id_legalone não encontrado, pulando...")
+                    continue
                 
-                for index, row in batch_df.iterrows():
+                # Verificar se o registro já existe
+                existing_record = await conn.fetchrow(f"""
+                    SELECT id_legalone FROM {table_name} WHERE id_legalone = $1
+                """, id_legalone)
+                
+                if existing_record:
+                    # ATUALIZAR registro existente
+                    set_clauses = []
+                    values = []
+                    
+                    for col in columns_df:
+                        if col != 'id_legalone':  # Não incluir id_legalone no SET
+                            set_clauses.append(f"{col} = ${len(values) + 1}")
+                            values.append(None if pd.isna(row[col]) else row[col])
+                    
+                    values.append(id_legalone)  # Adicionar id_legalone para WHERE
+                    
+                    update_query = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE id_legalone = ${len(values)}"
+                    await conn.execute(update_query, *values)
+                    updated_count += 1
+                    print(f"✅ Registro {id_legalone} atualizado")
+                else:
+                    # INSERIR novo registro
+                    columns_sql = ", ".join(f'"{col}"' for col in columns_df)
+                    placeholders = ", ".join(f"${i+1}" for i in range(len(columns_df)))
+                    insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
+                    
                     values = tuple(row.values)
                     cleaned_values = tuple(None if pd.isna(v) else v for v in values)
                     await conn.execute(insert_query, *cleaned_values)
-                    total_inserted += 1
+                    inserted_count += 1
+                    print(f"✅ Registro {id_legalone} inserido")
         
         # Verificar resultado
         count_after = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
-        print(f"✅ Inserção concluída! Total inserido: {total_inserted}")
+        print(f"✅ UPSERT concluído! {updated_count} atualizados, {inserted_count} inseridos")
         print(f"📊 Registros: {count_before} → {count_after}")
         
         await conn.close()
@@ -482,34 +530,49 @@ async def insert_data_to_supabase_api(df, table_name):
         supabase: Client = create_client(supabase_url, supabase_key)
         print("✅ Cliente Supabase criado com sucesso!")
         
-        # Converter DataFrame para lista de dicionários
-        data_to_insert = df.to_dict('records')
-        print(f"📊 Preparando para inserir {len(data_to_insert)} registros via API...")
+        # Processar dados com UPSERT via API
+        print(f"📊 Processando {len(df)} registros com UPSERT via API...")
         
-        # Inserir dados em lotes para evitar timeout
-        batch_size = 100
-        total_inserted = 0
+        updated_count = 0
+        inserted_count = 0
         
-        for i in range(0, len(data_to_insert), batch_size):
-            batch = data_to_insert[i:i+batch_size]
-            print(f"📦 Processando lote {i//batch_size + 1}/{(len(data_to_insert)-1)//batch_size + 1} ({len(batch)} registros)")
+        # Processar cada registro individualmente para UPSERT
+        for index, row in df.iterrows():
+            id_legalone = row.get('id_legalone')
+            if not id_legalone:
+                print(f"⚠️ Linha {index}: id_legalone não encontrado, pulando...")
+                continue
             
             try:
-                # Inserir lote via API
-                result = supabase.table(table_name).insert(batch).execute()
+                # Verificar se o registro já existe
+                existing = supabase.table(table_name).select("id_legalone").eq("id_legalone", id_legalone).execute()
                 
-                if result.data:
-                    total_inserted += len(result.data)
-                    print(f"✅ Lote {i//batch_size + 1} inserido com sucesso!")
-                else:
-                    print(f"⚠️ Lote {i//batch_size + 1} inserido, mas sem dados retornados")
+                if existing.data:
+                    # ATUALIZAR registro existente
+                    update_data = row.to_dict()
+                    result = supabase.table(table_name).update(update_data).eq("id_legalone", id_legalone).execute()
                     
+                    if result.data:
+                        updated_count += 1
+                        print(f"✅ Registro {id_legalone} atualizado")
+                    else:
+                        print(f"⚠️ Falha ao atualizar registro {id_legalone}")
+                else:
+                    # INSERIR novo registro
+                    insert_data = row.to_dict()
+                    result = supabase.table(table_name).insert(insert_data).execute()
+                    
+                    if result.data:
+                        inserted_count += 1
+                        print(f"✅ Registro {id_legalone} inserido")
+                    else:
+                        print(f"⚠️ Falha ao inserir registro {id_legalone}")
+                        
             except Exception as e:
-                print(f"❌ Erro ao inserir lote {i//batch_size + 1}: {e}")
-                # Continuar com os próximos lotes mesmo se um falhar
+                print(f"❌ Erro ao processar registro {id_legalone}: {e}")
                 continue
         
-        print(f"✅ Inserção via API concluída! Total de registros inseridos: {total_inserted}")
+        print(f"✅ UPSERT via API concluído! {updated_count} atualizados, {inserted_count} inseridos")
         return True
         
     except Exception as e:
@@ -635,42 +698,57 @@ async def insert_data_to_supabase(df, table_name):
         count_before = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
         print(f"📊 Registros existentes na tabela: {count_before}")
         
+        # Processar dados com UPSERT
         columns_df = df.columns.tolist()
+        updated_count = 0
+        inserted_count = 0
         
-        # Prepara a query SQL de INSERT
-        # IMPORTANTE: Os nomes das colunas aqui (columns_sql) devem ser EXATAMENTE
-        # os nomes das colunas na sua tabela do Supabase.
-        # Eles vêm diretamente dos nomes das colunas do DataFrame, que você já
-        # renomeou anteriormente.
-        columns_sql = ", ".join(f'"{col}"' for col in columns_df) 
-        placeholders = ", ".join(f"${i+1}" for i in range(len(columns_df)))
-        insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
-
-        print(f"📊 Preparando para inserir {len(df)} linhas na tabela '{table_name}'...")
-        print(f"🔍 Colunas a serem inseridas: {columns_df}")
-        
-        # Inserir dados em lotes para melhor performance
-        batch_size = 100
-        total_inserted = 0
+        print(f"📊 Processando {len(df)} registros com UPSERT...")
+        print(f"🔍 Colunas: {columns_df}")
         
         async with conn.transaction():
-            for i in range(0, len(df), batch_size):
-                batch_df = df.iloc[i:i+batch_size]
-                print(f"📦 Processando lote {i//batch_size + 1}/{(len(df)-1)//batch_size + 1} ({len(batch_df)} registros)")
+            for index, row in df.iterrows():
+                id_legalone = row.get('id_legalone')
+                if not id_legalone:
+                    print(f"⚠️ Linha {index}: id_legalone não encontrado, pulando...")
+                    continue
                 
-                for index, row in batch_df.iterrows():
+                # Verificar se o registro já existe
+                existing_record = await conn.fetchrow(f"""
+                    SELECT id_legalone FROM {table_name} WHERE id_legalone = $1
+                """, id_legalone)
+                
+                if existing_record:
+                    # ATUALIZAR registro existente
+                    set_clauses = []
+                    values = []
+                    
+                    for col in columns_df:
+                        if col != 'id_legalone':  # Não incluir id_legalone no SET
+                            set_clauses.append(f"{col} = ${len(values) + 1}")
+                            values.append(None if pd.isna(row[col]) else row[col])
+                    
+                    values.append(id_legalone)  # Adicionar id_legalone para WHERE
+                    
+                    update_query = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE id_legalone = ${len(values)}"
+                    await conn.execute(update_query, *values)
+                    updated_count += 1
+                    print(f"✅ Registro {id_legalone} atualizado")
+                else:
+                    # INSERIR novo registro
+                    columns_sql = ", ".join(f'"{col}"' for col in columns_df)
+                    placeholders = ", ".join(f"${i+1}" for i in range(len(columns_df)))
+                    insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
+                    
                     values = tuple(row.values)
-                    # Verifica se há valores NaN e converte para None (NULL no DB)
-                    # asyncpg não aceita np.nan, apenas None
                     cleaned_values = tuple(None if pd.isna(v) else v for v in values)
                     await conn.execute(insert_query, *cleaned_values)
-                    total_inserted += 1
-                
-                print(f"✅ Lote {i//batch_size + 1} inserido com sucesso")
+                    inserted_count += 1
+                    print(f"✅ Registro {id_legalone} inserido")
         
-        # Verificar quantos registros foram inseridos
+        # Verificar resultado
         count_after = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
-        print(f"✅ Inserção concluída! Total de registros inseridos: {total_inserted}")
+        print(f"✅ UPSERT concluído! {updated_count} atualizados, {inserted_count} inseridos")
         print(f"📊 Registros na tabela antes: {count_before}, depois: {count_after}")
         
         return True

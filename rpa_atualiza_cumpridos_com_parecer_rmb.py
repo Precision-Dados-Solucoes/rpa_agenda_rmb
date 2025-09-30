@@ -148,6 +148,17 @@ async def process_excel_file(file_path):
         if 'conclusao_efetiva' in df.columns:
             df_processed['conclusao_efetiva_data'] = df['conclusao_efetiva'].apply(extract_date_from_datetime)
             print("✅ Campo 'conclusao_efetiva' processado → 'conclusao_efetiva_data'")
+        else:
+            # Se não existe campo 'conclusao_efetiva', criar coluna vazia
+            df_processed['conclusao_efetiva_data'] = None
+            print("⚠️ Campo 'conclusao_efetiva' não encontrado, criando coluna vazia")
+        
+        # Preencher conclusao_efetiva_data com conclusao_prevista_data quando vazia
+        if 'conclusao_prevista_data' in df_processed.columns and 'conclusao_efetiva_data' in df_processed.columns:
+            # Usar conclusao_prevista_data onde conclusao_efetiva_data está vazia
+            mask = df_processed['conclusao_efetiva_data'].isna() | (df_processed['conclusao_efetiva_data'] == '')
+            df_processed.loc[mask, 'conclusao_efetiva_data'] = df_processed.loc[mask, 'conclusao_prevista_data']
+            print("✅ Campo 'conclusao_efetiva_data' preenchido com 'conclusao_prevista_data' onde estava vazio")
         
         # Tratar campo 'cadastro' (dd/mm/aaaa hh:mm:ss) → formato aaaa/mm/dd
         if 'cadastro' in df.columns:
@@ -723,10 +734,10 @@ async def insert_data_to_supabase(df, table_name):
 
 def update_data_to_supabase_psycopg2(df, table_name):
     """
-    Atualiza dados no Supabase usando psycopg2 (mais estável)
-    Usa id_legalone como chave para UPDATE
+    Atualiza/Insere dados no Supabase usando psycopg2 com lógica UPSERT
+    Usa id_legalone como chave para UPDATE/INSERT
     """
-    print(f"🔄 Atualizando dados na tabela {table_name} via psycopg2...")
+    print(f"🔄 Atualizando/Inserindo dados na tabela {table_name} via psycopg2 (UPSERT)...")
     
     # Credenciais do Supabase
     host = os.getenv("SUPABASE_HOST", "db.dhfmqumwizrwdbjnbcua.supabase.co")
@@ -748,45 +759,59 @@ def update_data_to_supabase_psycopg2(df, table_name):
         
         cursor = conn.cursor()
         
-        # Preparar dados para atualização
+        # Preparar dados para UPSERT
         columns = list(df.columns)
         updated_rows = 0
+        inserted_rows = 0
         
-        # Atualizar cada linha usando id_legalone como chave
+        # Processar cada linha usando UPSERT
         for index, row in df.iterrows():
             id_legalone = row.get('id_legalone')
             if not id_legalone:
                 print(f"⚠️ Linha {index}: id_legalone não encontrado, pulando...")
                 continue
+            
+            # Verificar se o registro já existe
+            check_query = f"SELECT id_legalone FROM {table_name} WHERE id_legalone = %s"
+            cursor.execute(check_query, (id_legalone,))
+            existing_record = cursor.fetchone()
+            
+            if existing_record:
+                # ATUALIZAR registro existente
+                set_clauses = []
+                values = []
                 
-            # Construir SET clause dinamicamente
-            set_clauses = []
-            values = []
-            
-            for col in columns:
-                if col != 'id_legalone':  # Não incluir id_legalone no SET
-                    set_clauses.append(f"{col} = %s")
-                    values.append(row[col])
-            
-            values.append(id_legalone)  # Adicionar id_legalone para WHERE
-            
-            query = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE id_legalone = %s"
-            cursor.execute(query, values)
-            
-            if cursor.rowcount > 0:
+                for col in columns:
+                    if col != 'id_legalone':  # Não incluir id_legalone no SET
+                        set_clauses.append(f"{col} = %s")
+                        values.append(row[col])
+                
+                values.append(id_legalone)  # Adicionar id_legalone para WHERE
+                
+                update_query = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE id_legalone = %s"
+                cursor.execute(update_query, values)
                 updated_rows += 1
+                print(f"✅ Registro {id_legalone} atualizado")
             else:
-                print(f"⚠️ Nenhum registro encontrado com id_legalone: {id_legalone}")
+                # INSERIR novo registro
+                columns_sql = ", ".join(f'"{col}"' for col in columns)
+                placeholders = ", ".join(["%s"] * len(columns))
+                insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
+                
+                values = tuple(row.values)
+                cursor.execute(insert_query, values)
+                inserted_rows += 1
+                print(f"✅ Registro {id_legalone} inserido")
         
         conn.commit()
         cursor.close()
         conn.close()
         
-        print(f"✅ {updated_rows} registros atualizados com sucesso na tabela {table_name}")
+        print(f"✅ UPSERT concluído! {updated_rows} atualizados, {inserted_rows} inseridos na tabela {table_name}")
         return True
         
     except Exception as e:
-        print(f"❌ Erro ao atualizar dados via psycopg2: {e}")
+        print(f"❌ Erro ao processar dados via psycopg2: {e}")
         return False
 
 async def run():
