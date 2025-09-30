@@ -656,9 +656,15 @@ async def insert_data_to_supabase(df, table_name):
                 
                 for index, row in batch_df.iterrows():
                     values = tuple(row.values)
-                    # Verifica se há valores NaN e converte para None (NULL no DB)
-                    # asyncpg não aceita np.nan, apenas None
-                    cleaned_values = tuple(None if pd.isna(v) else v for v in values)
+                    # Verifica se há valores NaN/NaT e converte para None (NULL no DB)
+                    # asyncpg não aceita np.nan ou NaT, apenas None
+                    cleaned_values = []
+                    for v in values:
+                        if pd.isna(v) or str(v) == 'NaT':
+                            cleaned_values.append(None)
+                        else:
+                            cleaned_values.append(v)
+                    cleaned_values = tuple(cleaned_values)
                     await conn.execute(insert_query, *cleaned_values)
                     total_inserted += 1
                 
