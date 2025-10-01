@@ -37,7 +37,7 @@ jobs:
         python analise_agenda_dados.py
         
     - name: Upload dos gráficos gerados
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: graficos-analise-${{ github.run_number }}
