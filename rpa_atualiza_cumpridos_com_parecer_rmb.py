@@ -469,8 +469,18 @@ async def insert_data_to_supabase_connection_string(df, table_name):
         print(f"✅ UPSERT concluído! {updated_count} atualizados, {inserted_count} inseridos")
         print(f"📊 Registros: {count_before} → {count_after}")
         
-        await conn.close()
-        print("🔌 Conexão fechada com sucesso!")
+        try:
+            await asyncio.wait_for(conn.close(), timeout=5.0)
+            print("🔌 Conexão fechada com sucesso!")
+        except asyncio.TimeoutError:
+            print("⚠️ Timeout ao fechar conexão - forçando fechamento")
+            try:
+                conn.terminate()
+                print("🔌 Conexão forçada a fechar com sucesso!")
+            except Exception as e:
+                print(f"⚠️ Erro ao forçar fechamento: {e}")
+        except Exception as e:
+            print(f"⚠️ Erro ao fechar conexão: {e}")
         return True
         
     except Exception as e:
@@ -626,7 +636,12 @@ async def insert_data_to_supabase(df, table_name):
             
             if conn:
                 try:
-                    await conn.close()
+                    await asyncio.wait_for(conn.close(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    try:
+                        conn.terminate()
+                    except:
+                        pass
                 except:
                     pass
             
@@ -729,8 +744,18 @@ async def insert_data_to_supabase(df, table_name):
         return False
     finally:
         if conn:
-            await conn.close()
-            print("🔌 Conexão com o Supabase fechada.")
+            try:
+                await asyncio.wait_for(conn.close(), timeout=5.0)
+                print("🔌 Conexão com o Supabase fechada.")
+            except asyncio.TimeoutError:
+                print("⚠️ Timeout ao fechar conexão - forçando fechamento")
+                try:
+                    conn.terminate()
+                    print("🔌 Conexão forçada a fechar com sucesso!")
+                except Exception as e:
+                    print(f"⚠️ Erro ao forçar fechamento: {e}")
+            except Exception as e:
+                print(f"⚠️ Erro ao fechar conexão: {e}")
 
 def update_data_to_supabase_psycopg2(df, table_name):
     """
