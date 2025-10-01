@@ -307,8 +307,22 @@ async def close_connection():
     """Fecha a conexao com o banco"""
     global conn
     if conn:
-        await conn.close()
-        print("Conexao fechada com sucesso!")
+        try:
+            # Tenta fechar a conexão com timeout
+            await asyncio.wait_for(conn.close(), timeout=5.0)
+            print("Conexao fechada com sucesso!")
+        except asyncio.TimeoutError:
+            print("⚠️ Timeout ao fechar conexão - forçando fechamento")
+            # Força o fechamento da conexão sem aguardar
+            try:
+                conn.terminate()
+                print("Conexao forçada a fechar com sucesso!")
+            except Exception as e:
+                print(f"⚠️ Erro ao forçar fechamento: {e}")
+        except Exception as e:
+            print(f"⚠️ Erro ao fechar conexão: {e}")
+        finally:
+            conn = None
 
 async def test_upsert_with_sample_data():
     """Testa o sistema UPSERT com dados de exemplo"""
