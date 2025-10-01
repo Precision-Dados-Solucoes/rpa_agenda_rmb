@@ -30,12 +30,12 @@ async def connect_to_supabase():
     """
     print("Conectando ao Supabase...")
     
-    # Credenciais do Supabase (hardcoded para teste)
-    host = "db.dhfmqumwizrwdbjnbcua.supabase.co"
-    port = "5432"
-    database = "postgres"
-    user = "postgres"
-    password = "L7CEsmTv@vZKfpN"
+    # Credenciais do Supabase (usando variáveis de ambiente)
+    host = os.getenv("SUPABASE_HOST", "db.dhfmqumwizrwdbjnbcua.supabase.co")
+    port = os.getenv("SUPABASE_PORT", "5432")
+    database = os.getenv("SUPABASE_DATABASE", "postgres")
+    user = os.getenv("SUPABASE_USER", "postgres")
+    password = os.getenv("SUPABASE_PASSWORD", "L7CEsmTv@vZKfpN")
     
     print(f"Conectando: {user}@{host}:{port}/{database}")
     
@@ -46,12 +46,22 @@ async def connect_to_supabase():
             host=host,
             port=int(port),
             database=database,
-            ssl="require"
+            ssl="require",
+            command_timeout=30,
+            server_settings={
+                'application_name': 'rpa_daily_report',
+                'tcp_keepalives_idle': '60',
+                'tcp_keepalives_interval': '10',
+                'tcp_keepalives_count': '3',
+                'statement_timeout': '60000',
+                'idle_in_transaction_session_timeout': '60000'
+            }
         )
         print("Conexao com Supabase estabelecida!")
         return conn
     except Exception as e:
         print(f"Erro ao conectar com Supabase: {e}")
+        print(f"Tipo do erro: {type(e).__name__}")
         return None
 
 async def get_daily_agenda_data(conn):
@@ -270,8 +280,19 @@ async def main():
             print("Falha ao enviar relatorio")
             
     finally:
-        await conn.close()
-        print("Conexao com Supabase fechada")
+        if conn:
+            try:
+                await asyncio.wait_for(conn.close(), timeout=5.0)
+                print("Conexao com Supabase fechada com sucesso!")
+            except asyncio.TimeoutError:
+                print("⚠️ Timeout ao fechar conexão - forçando fechamento")
+                try:
+                    conn.terminate()
+                    print("Conexao forçada a fechar com sucesso!")
+                except Exception as e:
+                    print(f"⚠️ Erro ao forçar fechamento: {e}")
+            except Exception as e:
+                print(f"⚠️ Erro ao fechar conexão: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())
