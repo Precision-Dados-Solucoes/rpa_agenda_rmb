@@ -15,6 +15,7 @@ import asyncpg
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import psycopg2
+from azure_sql_helper import upsert_agenda_base
 
 # Carrega as variáveis de ambiente do arquivo config.env
 load_dotenv('config.env')
@@ -165,6 +166,11 @@ async def process_excel_file(file_path):
             df_processed['cadastro'] = df['cadastro'].apply(extract_date_from_datetime)
             print("✅ Campo 'cadastro' processado → formato aaaa/mm/dd")
         
+        # Tratar campo 'prazo_fatal' (dd/mm/aaaa hh:mm) → apenas data
+        if 'prazo_fatal' in df.columns:
+            df_processed['prazo_fatal_data'] = df['prazo_fatal'].apply(extract_date_from_datetime)
+            print("✅ Campo 'prazo_fatal' processado → 'prazo_fatal_data'")
+        
         # 4. Gerar campo 'link' concatenado
         if 'id_legalone' in df_processed.columns:
             df_processed['link'] = df_processed['id_legalone'].apply(generate_link)
@@ -195,7 +201,7 @@ async def process_excel_file(file_path):
                 print(f"✅ Campo '{col}' convertido para string")
         
         # Converter campos de data
-        date_columns = ['inicio_data', 'conclusao_prevista_data', 'conclusao_efetiva_data']
+        date_columns = ['inicio_data', 'conclusao_prevista_data', 'conclusao_efetiva_data', 'prazo_fatal_data']
         for col in date_columns:
             if col in df_processed.columns:
                 df_processed[col] = pd.to_datetime(df_processed[col], errors='coerce').dt.date
@@ -218,14 +224,18 @@ async def process_excel_file(file_path):
 
 def extract_date_from_datetime(datetime_str):
     """
-    Extrai a data de uma string no formato dd/mm/aaaa hh:mm:ss
+    Extrai a data de uma string no formato dd/mm/aaaa hh:mm:ss ou dd/mm/aaaa hh:mm
+    Tenta primeiro com segundos, depois sem segundos
     """
     if pd.isna(datetime_str) or datetime_str == '':
         return None
     
     try:
-        # Converte string para datetime
+        # Tenta primeiro com segundos (formato padrão)
         dt = pd.to_datetime(datetime_str, format='%d/%m/%Y %H:%M:%S', errors='coerce')
+        if pd.isna(dt):
+            # Se falhar, tenta sem segundos (formato prazo_fatal)
+            dt = pd.to_datetime(datetime_str, format='%d/%m/%Y %H:%M', errors='coerce')
         if pd.isna(dt):
             return None
         return dt.date()
@@ -974,7 +984,8 @@ async def run():
         print("Selecionando a licença usando current-value...")
         try:
             # Valor específico da licença (robertomatos - cleiton.sanches)
-            license_specific_value = "64ee2867d98cf01183cb12fc83a1b95d"
+            # ATUALIZADO: current-value mudou para 321230142ac9f01183ce12fc83a1b95d
+            license_specific_value = "321230142ac9f01183ce12fc83a1b95d"
             
             # Seletor para o saf-radio com o current-value específico
             license_selector = f'saf-radio[current-value="{license_specific_value}"] >> input[part="control"]'
@@ -1205,6 +1216,17 @@ async def run():
                 
                 if success:
                     print("✅ Dados de cumpridos com parecer atualizados no Supabase com sucesso!")
+                    
+                    # Inserir/atualizar também no Azure SQL Database
+                    print("\n[AZURE] Inserindo/atualizando dados no Azure SQL Database...")
+                    try:
+                        azure_success = upsert_agenda_base(df_processed, "agenda_base")
+                        if azure_success:
+                            print("✅ Dados inseridos/atualizados no Azure SQL Database com sucesso!")
+                        else:
+                            print("❌ Falha ao inserir/atualizar dados no Azure SQL Database.")
+                    except Exception as e:
+                        print(f"❌ Erro ao inserir no Azure SQL Database: {e}")
                     
                     # Limpar arquivo baixado após processamento bem-sucedido
                     try:

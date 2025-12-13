@@ -1,3 +1,12 @@
+#!/usr/bin/env python3
+"""
+RPA para Atualização de Agenda RMB - Relatório 677
+Automatiza a extração do relatório de atualização de agenda do Legal One/Novajus
+URL: https://robertomatos.novajus.com.br/agenda/GenericReport/?id=677
+Arquivo esperado: z-rpa_atualiza_agenda_677_rmb_queeue.xlsx
+Processamento: UPDATE na tabela agenda_base usando id_legalone como chave
+"""
+
 import asyncio
 from playwright.async_api import async_playwright, TimeoutError
 import os
@@ -8,20 +17,7 @@ from supabase import create_client, Client
 import psycopg2
 from azure_sql_helper import upsert_agenda_base
 
-# --- INSTALAÇÃO DE BIBLIOTECAS (rode estes comandos no seu terminal se ainda não o fez): ---
-# pip install pandas
-# pip install asyncpg
-# pip install python-dotenv
-# pip install openpyxl
-# -----------------------------------------------------------------------------------------
-
 # Carrega as variáveis de ambiente do arquivo config.env
-# Certifique-se de ter um arquivo config.env no mesmo diretório do seu script com as credenciais:
-# SUPABASE_HOST=db.dhfmqumwizrwdbjnbcua.supabase.co
-# SUPABASE_PORT=5432
-# SUPABASE_DATABASE=postgres
-# SUPABASE_USER=postgres
-# SUPABASE_PASSWORD=PDS2025@@
 load_dotenv('config.env')
 
 # Configuração automática do modo headless baseada no ambiente
@@ -30,7 +26,15 @@ load_dotenv('config.env')
 downloads_dir = "downloads"
 if not os.path.exists(downloads_dir):
     os.makedirs(downloads_dir)
-print(f"A pasta de downloads será: {os.path.abspath(downloads_dir)}")
+import sys
+# Forçar encoding UTF-8 e flush imediato
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
+
+print(f"A pasta de downloads será: {os.path.abspath(downloads_dir)}", flush=True)
 
 async def close_any_known_popup(page):
     """
@@ -326,52 +330,28 @@ def insert_data_to_supabase_psycopg2(df, table_name):
         count_before = cursor.fetchone()[0]
         print(f"📊 Registros existentes: {count_before}")
         
-        # Processar dados com UPSERT
+        # Inserir dados
         columns_df = df.columns.tolist()
-        updated_count = 0
-        inserted_count = 0
+        columns_sql = ", ".join(f'"{col}"' for col in columns_df)
+        placeholders = ", ".join(["%s"] * len(columns_df))
+        insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
         
-        print(f"📊 Processando {len(df)} registros com UPSERT...")
+        print(f"📊 Inserindo {len(df)} registros...")
         
-        # Processar cada registro com UPSERT
-        for index, row in df.iterrows():
-            id_legalone = row.get('id_legalone')
-            if not id_legalone:
-                print(f"⚠️ Linha {index}: id_legalone não encontrado, pulando...")
-                continue
+        # Inserir em lotes
+        batch_size = 100
+        total_inserted = 0
+        
+        for i in range(0, len(df), batch_size):
+            batch_df = df.iloc[i:i+batch_size]
+            print(f"📦 Lote {i//batch_size + 1}/{(len(df)-1)//batch_size + 1}")
             
-            # Verificar se o registro já existe
-            check_query = f"SELECT id_legalone FROM {table_name} WHERE id_legalone = %s"
-            cursor.execute(check_query, (id_legalone,))
-            existing_record = cursor.fetchone()
-            
-            if existing_record:
-                # ATUALIZAR registro existente
-                set_clauses = []
-                values = []
-                
-                for col in columns_df:
-                    if col != 'id_legalone':  # Não incluir id_legalone no SET
-                        set_clauses.append(f"{col} = %s")
-                        values.append(None if pd.isna(row[col]) else row[col])
-                
-                values.append(id_legalone)  # Adicionar id_legalone para WHERE
-                
-                update_query = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE id_legalone = %s"
-                cursor.execute(update_query, values)
-                updated_count += 1
-                print(f"✅ Registro {id_legalone} atualizado")
-            else:
-                # INSERIR novo registro
-                columns_sql = ", ".join(f'"{col}"' for col in columns_df)
-                placeholders = ", ".join(["%s"] * len(columns_df))
-                insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
-                
+            for index, row in batch_df.iterrows():
                 values = tuple(row.values)
+                # Converter NaN para None
                 cleaned_values = tuple(None if pd.isna(v) else v for v in values)
                 cursor.execute(insert_query, cleaned_values)
-                inserted_count += 1
-                print(f"✅ Registro {id_legalone} inserido")
+                total_inserted += 1
         
         # Commit das alterações
         conn.commit()
@@ -379,7 +359,7 @@ def insert_data_to_supabase_psycopg2(df, table_name):
         # Verificar resultado
         cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
         count_after = cursor.fetchone()[0]
-        print(f"✅ UPSERT concluído! {updated_count} atualizados, {inserted_count} inseridos")
+        print(f"✅ Inserção concluída! Total inserido: {total_inserted}")
         print(f"📊 Registros: {count_before} → {count_after}")
         
         cursor.close()
@@ -402,7 +382,7 @@ def insert_data_to_supabase_psycopg2(df, table_name):
 
 async def insert_data_to_supabase_connection_string(df, table_name):
     """
-    Insere os dados usando connection string completa com sslmode=require
+    Atualiza/Insere dados usando connection string com lógica UPSERT
     """
     print("🔗 Conectando ao Supabase via connection string...")
     
@@ -446,7 +426,7 @@ async def insert_data_to_supabase_connection_string(df, table_name):
         count_before = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
         print(f"📊 Registros existentes: {count_before}")
         
-        # Processar dados com UPSERT
+        # Preparar dados para UPSERT
         columns_df = df.columns.tolist()
         updated_count = 0
         inserted_count = 0
@@ -480,7 +460,6 @@ async def insert_data_to_supabase_connection_string(df, table_name):
                     update_query = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE id_legalone = ${len(values)}"
                     await conn.execute(update_query, *values)
                     updated_count += 1
-                    print(f"✅ Registro {id_legalone} atualizado")
                 else:
                     # INSERIR novo registro
                     columns_sql = ", ".join(f'"{col}"' for col in columns_df)
@@ -491,7 +470,6 @@ async def insert_data_to_supabase_connection_string(df, table_name):
                     cleaned_values = tuple(None if pd.isna(v) else v for v in values)
                     await conn.execute(insert_query, *cleaned_values)
                     inserted_count += 1
-                    print(f"✅ Registro {id_legalone} inserido")
         
         # Verificar resultado
         count_after = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
@@ -550,49 +528,34 @@ async def insert_data_to_supabase_api(df, table_name):
         supabase: Client = create_client(supabase_url, supabase_key)
         print("✅ Cliente Supabase criado com sucesso!")
         
-        # Processar dados com UPSERT via API
-        print(f"📊 Processando {len(df)} registros com UPSERT via API...")
+        # Converter DataFrame para lista de dicionários
+        data_to_insert = df.to_dict('records')
+        print(f"📊 Preparando para inserir {len(data_to_insert)} registros via API...")
         
-        updated_count = 0
-        inserted_count = 0
+        # Inserir dados em lotes para evitar timeout
+        batch_size = 100
+        total_inserted = 0
         
-        # Processar cada registro individualmente para UPSERT
-        for index, row in df.iterrows():
-            id_legalone = row.get('id_legalone')
-            if not id_legalone:
-                print(f"⚠️ Linha {index}: id_legalone não encontrado, pulando...")
-                continue
+        for i in range(0, len(data_to_insert), batch_size):
+            batch = data_to_insert[i:i+batch_size]
+            print(f"📦 Processando lote {i//batch_size + 1}/{(len(data_to_insert)-1)//batch_size + 1} ({len(batch)} registros)")
             
             try:
-                # Verificar se o registro já existe
-                existing = supabase.table(table_name).select("id_legalone").eq("id_legalone", id_legalone).execute()
+                # Inserir lote via API
+                result = supabase.table(table_name).insert(batch).execute()
                 
-                if existing.data:
-                    # ATUALIZAR registro existente
-                    update_data = row.to_dict()
-                    result = supabase.table(table_name).update(update_data).eq("id_legalone", id_legalone).execute()
-                    
-                    if result.data:
-                        updated_count += 1
-                        print(f"✅ Registro {id_legalone} atualizado")
-                    else:
-                        print(f"⚠️ Falha ao atualizar registro {id_legalone}")
+                if result.data:
+                    total_inserted += len(result.data)
+                    print(f"✅ Lote {i//batch_size + 1} inserido com sucesso!")
                 else:
-                    # INSERIR novo registro
-                    insert_data = row.to_dict()
-                    result = supabase.table(table_name).insert(insert_data).execute()
+                    print(f"⚠️ Lote {i//batch_size + 1} inserido, mas sem dados retornados")
                     
-                    if result.data:
-                        inserted_count += 1
-                        print(f"✅ Registro {id_legalone} inserido")
-                    else:
-                        print(f"⚠️ Falha ao inserir registro {id_legalone}")
-                        
             except Exception as e:
-                print(f"❌ Erro ao processar registro {id_legalone}: {e}")
+                print(f"❌ Erro ao inserir lote {i//batch_size + 1}: {e}")
+                # Continuar com os próximos lotes mesmo se um falhar
                 continue
         
-        print(f"✅ UPSERT via API concluído! {updated_count} atualizados, {inserted_count} inseridos")
+        print(f"✅ Inserção via API concluída! Total de registros inseridos: {total_inserted}")
         return True
         
     except Exception as e:
@@ -602,7 +565,7 @@ async def insert_data_to_supabase_api(df, table_name):
 
 async def insert_data_to_supabase(df, table_name):
     """
-    Insere os dados de um DataFrame do pandas em uma tabela do Supabase.
+    Atualiza/Insere dados no Supabase com lógica UPSERT
     """
     # Credenciais do Supabase com fallback (como no Novajus)
     host = os.getenv("SUPABASE_HOST", "db.dhfmqumwizrwdbjnbcua.supabase.co")
@@ -723,13 +686,12 @@ async def insert_data_to_supabase(df, table_name):
         count_before = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
         print(f"📊 Registros existentes na tabela: {count_before}")
         
-        # Processar dados com UPSERT
+        # Preparar dados para UPSERT
         columns_df = df.columns.tolist()
         updated_count = 0
         inserted_count = 0
         
         print(f"📊 Processando {len(df)} registros com UPSERT...")
-        print(f"🔍 Colunas: {columns_df}")
         
         async with conn.transaction():
             for index, row in df.iterrows():
@@ -758,7 +720,6 @@ async def insert_data_to_supabase(df, table_name):
                     update_query = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE id_legalone = ${len(values)}"
                     await conn.execute(update_query, *values)
                     updated_count += 1
-                    print(f"✅ Registro {id_legalone} atualizado")
                 else:
                     # INSERIR novo registro
                     columns_sql = ", ".join(f'"{col}"' for col in columns_df)
@@ -766,10 +727,15 @@ async def insert_data_to_supabase(df, table_name):
                     insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
                     
                     values = tuple(row.values)
-                    cleaned_values = tuple(None if pd.isna(v) else v for v in values)
+                    cleaned_values = []
+                    for v in values:
+                        if pd.isna(v) or str(v) == 'NaT':
+                            cleaned_values.append(None)
+                        else:
+                            cleaned_values.append(v)
+                    cleaned_values = tuple(cleaned_values)
                     await conn.execute(insert_query, *cleaned_values)
                     inserted_count += 1
-                    print(f"✅ Registro {id_legalone} inserido")
         
         # Verificar resultado
         count_after = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
@@ -779,7 +745,7 @@ async def insert_data_to_supabase(df, table_name):
         return True
 
     except Exception as e:
-        print(f"❌ Erro ao inserir dados no Supabase: {e}")
+        print(f"❌ Erro ao processar dados no Supabase: {e}")
         print(f"🔍 Tipo do erro: {type(e).__name__}")
         print(f"🔍 Detalhes do erro: {str(e)}")
         return False
@@ -798,43 +764,175 @@ async def insert_data_to_supabase(df, table_name):
             except Exception as e:
                 print(f"⚠️ Erro ao fechar conexão: {e}")
 
-async def run():
-    async with async_playwright() as p:
-        # Configuração automática do modo headless
-        # Detecta se está em ambiente sem interface gráfica (GitHub Actions, etc.)
-        headless_mode = os.getenv("HEADLESS", "true").lower() == "true"
+def update_data_to_supabase_psycopg2(df, table_name):
+    """
+    Atualiza/Insere dados no Supabase usando psycopg2 com lógica UPSERT
+    Usa id_legalone como chave para UPDATE/INSERT
+    """
+    print(f"🔄 Atualizando/Inserindo dados na tabela {table_name} via psycopg2 (UPSERT)...")
+    
+    # Credenciais do Supabase
+    host = os.getenv("SUPABASE_HOST", "db.dhfmqumwizrwdbjnbcua.supabase.co")
+    port = os.getenv("SUPABASE_PORT", "5432")
+    database = os.getenv("SUPABASE_DATABASE", "postgres")
+    user = os.getenv("SUPABASE_USER", "postgres")
+    password = os.getenv("SUPABASE_PASSWORD", "L7CEsmTv@vZKfpN")
+    
+    try:
+        # Conectar ao banco
+        conn = psycopg2.connect(
+            host=host,
+            port=port,
+            database=database,
+            user=user,
+            password=password,
+            sslmode='require'
+        )
         
-        # Se estiver em ambiente CI/CD (GitHub Actions), força headless
-        if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
-            headless_mode = True
+        cursor = conn.cursor()
+        
+        # Preparar dados para UPSERT
+        columns = list(df.columns)
+        updated_rows = 0
+        inserted_rows = 0
+        
+        # Processar cada linha usando UPSERT
+        for index, row in df.iterrows():
+            id_legalone = row.get('id_legalone')
+            if not id_legalone:
+                print(f"⚠️ Linha {index}: id_legalone não encontrado, pulando...")
+                continue
             
-        print(f"Executando em modo {'headless' if headless_mode else 'com interface gráfica'}")
-        browser = await p.chromium.launch(headless=headless_mode)
+            # Verificar se o registro já existe
+            check_query = f"SELECT id_legalone FROM {table_name} WHERE id_legalone = %s"
+            cursor.execute(check_query, (id_legalone,))
+            existing_record = cursor.fetchone()
+            
+            if existing_record:
+                # ATUALIZAR registro existente
+                set_clauses = []
+                values = []
+                
+                for col in columns:
+                    if col != 'id_legalone':  # Não incluir id_legalone no SET
+                        set_clauses.append(f"{col} = %s")
+                        values.append(row[col])
+                
+                values.append(id_legalone)  # Adicionar id_legalone para WHERE
+                
+                update_query = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE id_legalone = %s"
+                cursor.execute(update_query, values)
+                updated_rows += 1
+                print(f"✅ Registro {id_legalone} atualizado")
+            else:
+                # INSERIR novo registro
+                columns_sql = ", ".join(f'"{col}"' for col in columns)
+                placeholders = ", ".join(["%s"] * len(columns))
+                insert_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
+                
+                values = tuple(row.values)
+                cursor.execute(insert_query, values)
+                inserted_rows += 1
+                print(f"✅ Registro {id_legalone} inserido")
         
-        chrome_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" 
-        context = await browser.new_context(user_agent=chrome_user_agent)
+        conn.commit()
+        cursor.close()
+        conn.close()
         
-        page = await context.new_page()
+        print(f"✅ UPSERT concluído! {updated_rows} atualizados, {inserted_rows} inseridos na tabela {table_name}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erro ao processar dados via psycopg2: {e}")
+        return False
+
+async def run():
+    try:
+        print("\n" + "="*70)
+        print("🚀 INICIANDO RPA - ETAPA: Criação do navegador")
+        print("="*70)
+        
+        async with async_playwright() as p:
+            # Configuração automática do modo headless
+            # FORÇAR MODO NÃO-HEADLESS PARA TESTE (mostrar interface gráfica)
+            headless_mode = False  # Sempre mostrar a tela para acompanhar
+            
+            # Se estiver em ambiente CI/CD (GitHub Actions), força headless
+            if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
+                headless_mode = True
+                
+            print(f"📺 Modo: {'headless' if headless_mode else 'COM INTERFACE GRÁFICA (VISÍVEL)'}")
+            print(f"🔍 DEBUG: Iniciando navegador Chromium...")
+            try:
+                browser = await p.chromium.launch(headless=headless_mode)
+                print(f"✅ Navegador iniciado com sucesso!")
+            except Exception as e:
+                print(f"❌ ERRO FATAL ao iniciar navegador: {e}")
+                import traceback
+                traceback.print_exc()
+                return
+            
+            chrome_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" 
+            print(f"🔍 DEBUG: Criando contexto do navegador...")
+            try:
+                context = await browser.new_context(user_agent=chrome_user_agent)
+                print(f"✅ Contexto criado com sucesso!")
+            except Exception as e:
+                print(f"❌ ERRO ao criar contexto: {e}")
+                import traceback
+                traceback.print_exc()
+                await browser.close()
+                return
+            
+            print(f"🔍 DEBUG: Criando nova página...")
+            try:
+                page = await context.new_page()
+                print(f"✅ Página criada com sucesso!")
+            except Exception as e:
+                print(f"❌ ERRO ao criar página: {e}")
+                import traceback
+                traceback.print_exc()
+                await browser.close()
+                return
 
         # --- CREDENCIAIS DE LOGIN NO SISTEMA NOVAJUS ---
         USERNAME = os.getenv("NOVAJUS_USERNAME", "cleiton.sanches@precisionsolucoes.com")
         PASSWORD = os.getenv("NOVAJUS_PASSWORD", "PDS2025@")
 
         # --- ETAPA 1: NAVEGAR PARA A PÁGINA DE LOGIN ---
+        print("\n" + "="*70)
+        print("📍 ETAPA 1: NAVEGANDO PARA PÁGINA DE LOGIN")
+        print("="*70)
         novajus_login_url = "https://login.novajus.com.br/conta/login" 
-        print(f"Navegando para {novajus_login_url}...")
+        print(f"🌐 URL: {novajus_login_url}")
+        print(f"⏳ Navegando...")
         
         try:
             await page.goto(novajus_login_url, wait_until="domcontentloaded", timeout=60000) 
-            print(f"DEBUG: URL atual após page.goto(): {page.url}")
+            print(f"✅ Página carregada!")
+            print(f"📍 URL atual: {page.url}")
             await page.screenshot(path="debug_initial_page.png", full_page=True)
-            print("DEBUG: Captura de tela 'debug_initial_page.png' tirada após page.goto().")
-        except TimeoutError:
+            print("📸 Screenshot salvo: debug_initial_page.png")
+        except TimeoutError as e:
+            print(f"❌ ERRO: Timeout ao navegar para página de login")
+            print(f"🔍 Erro: {e}")
             print(f"Erro FATAL: page.goto() para {novajus_login_url} excedeu o tempo limite. Verifique sua conexão ou a URL.")
+            await page.screenshot(path="debug_login_timeout_error.png", full_page=True)
+            print("📸 Screenshot de erro salvo: debug_login_timeout_error.png")
+            if not headless_mode:
+                print("⏸️  Mantendo navegador aberto por 30 segundos para inspeção...")
+                await page.wait_for_timeout(30000)
             await browser.close()
             return
         except Exception as e:
-            print(f"Erro inesperado ao navegar para a página de login: {e}")
+            print(f"❌ ERRO INESPERADO ao navegar para a página de login: {e}")
+            import traceback
+            traceback.print_exc()
+            await page.screenshot(path="debug_login_unexpected_error.png", full_page=True)
+            print("📸 Screenshot de erro salvo: debug_login_unexpected_error.png")
+            if not headless_mode:
+                print("⏸️  Mantendo navegador aberto por 30 segundos para inspeção...")
+                await page.wait_for_timeout(30000)
             await browser.close()
             return
 
@@ -1001,7 +1099,7 @@ async def run():
         await close_any_known_popup(page)
 
         # --- ETAPA 6: NAVEGAR PARA O RELATÓRIO ---
-        report_url = "https://robertomatos.novajus.com.br/agenda/GenericReport/?id=671"
+        report_url = "https://robertomatos.novajus.com.br/agenda/GenericReport/?id=677"
         print(f"Navegando para o relatório: {report_url}...")
         try:
             await page.goto(report_url, wait_until="domcontentloaded", timeout=60000)
@@ -1141,7 +1239,7 @@ async def run():
 
         # --- ETAPA 9: PROCESSAR ARQUIVO E INSERIR NO SUPABASE ---
         print("\n" + "="*70)
-        print("🔄 PROCESSANDO ARQUIVO BAIXADO E INSERINDO NO SUPABASE")
+        print("🔄 PROCESSANDO ARQUIVO BAIXADO E ATUALIZANDO NO SUPABASE")
         print("="*70)
         
         if file_path:
@@ -1151,9 +1249,9 @@ async def run():
             df_processed = await process_excel_file(file_path)
             
             if df_processed is not None and not df_processed.empty:
-                # Tentar inserir via psycopg2 primeiro (mais estável)
-                print("🔄 Tentando inserir dados via psycopg2...")
-                success = insert_data_to_supabase_psycopg2(df_processed, "agenda_base")
+                # Tentar atualizar via psycopg2 primeiro (mais estável)
+                print("🔄 Tentando atualizar dados via psycopg2...")
+                success = update_data_to_supabase_psycopg2(df_processed, "agenda_base")
                 
                 if not success:
                     print("⚠️ psycopg2 falhou, tentando connection string...")
@@ -1164,7 +1262,18 @@ async def run():
                     success = await insert_data_to_supabase(df_processed, "agenda_base")
                 
                 if success:
-                    print("✅ Dados inseridos no Supabase com sucesso!")
+                    print("✅ Dados atualizados no Supabase com sucesso!")
+                    
+                    # Inserir/atualizar também no Azure SQL Database
+                    print("\n[AZURE] Inserindo/atualizando dados no Azure SQL Database...")
+                    try:
+                        azure_success = upsert_agenda_base(df_processed, "agenda_base")
+                        if azure_success:
+                            print("✅ Dados inseridos/atualizados no Azure SQL Database com sucesso!")
+                        else:
+                            print("❌ Falha ao inserir/atualizar dados no Azure SQL Database.")
+                    except Exception as e:
+                        print(f"❌ Erro ao inserir no Azure SQL Database: {e}")
                     
                     # Limpar arquivo baixado após processamento bem-sucedido
                     try:
@@ -1177,11 +1286,11 @@ async def run():
                         print(f"⚠️ Erro ao remover arquivo {file_path}: {e}")
                         
                 else:
-                    print("❌ Falha ao inserir dados no Supabase (todas as tentativas falharam).")
+                    print("❌ Falha ao atualizar dados no Supabase (todas as tentativas falharam).")
                     print("💾 Salvando dados localmente como backup...")
                     
                     # Salvar como backup local
-                    backup_file = f"backup_agenda_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    backup_file = f"backup_atualiza_concluidos_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                     backup_path = os.path.join(downloads_dir, backup_file)
                     df_processed.to_excel(backup_path, index=False)
                     print(f"📁 Backup salvo em: {backup_path}")
@@ -1315,8 +1424,64 @@ async def test_supabase_insertion():
 
 # --- Execução principal do script ---
 if __name__ == "__main__":
-    # Para rodar o teste de inserção no Supabase:
-    # asyncio.run(test_supabase_insertion())
+    import sys
+    import datetime
+    
+    # Criar arquivo de log para capturar todos os erros
+    log_file = f"rpa_error_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    
+    class TeeOutput:
+        """Classe para escrever simultaneamente no console e no arquivo"""
+        def __init__(self, *files):
+            self.files = files
+        def write(self, obj):
+            for f in self.files:
+                f.write(obj)
+                f.flush()
+        def flush(self):
+            for f in self.files:
+                f.flush()
+    
+    # Redirecionar stdout e stderr para arquivo e console
+    log_f = open(log_file, 'w', encoding='utf-8')
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    sys.stdout = TeeOutput(sys.stdout, log_f)
+    sys.stderr = TeeOutput(sys.stderr, log_f)
+    
+    try:
+        # Forçar encoding UTF-8
+        if sys.stdout.encoding != 'utf-8':
+            try:
+                sys.stdout.reconfigure(encoding='utf-8')
+            except:
+                pass
+        
+        print("="*70)
+        print("🚀 INICIANDO RPA ATUALIZAÇÃO AGENDA 677")
+        print(f"📝 Log sendo salvo em: {log_file}")
+        print("="*70)
+        # Para rodar o teste de inserção no Supabase:
+        # asyncio.run(test_supabase_insertion())
 
-    # Para rodar a automação COMPLETA (descomente a linha abaixo e comente a de cima):
-    asyncio.run(run())
+        # Para rodar a automação COMPLETA:
+        asyncio.run(run())
+        print("\n" + "="*70)
+        print("✅ RPA FINALIZADO")
+        print("="*70)
+    except KeyboardInterrupt:
+        print("\n⚠️  RPA interrompido pelo usuário (Ctrl+C)")
+    except Exception as e:
+        print(f"\n❌ ERRO FATAL no RPA: {e}")
+        import traceback
+        traceback.print_exc()
+        print("\n" + "="*70)
+        print("❌ RPA FINALIZADO COM ERRO")
+        print(f"📝 Erro completo salvo em: {log_file}")
+        print("="*70)
+    finally:
+        # Restaurar stdout e stderr
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
+        log_f.close()
+        print(f"\n📝 Log completo salvo em: {log_file}")

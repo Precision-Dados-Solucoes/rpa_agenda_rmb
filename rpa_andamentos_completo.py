@@ -11,6 +11,7 @@ import pandas as pd
 import asyncpg
 from dotenv import load_dotenv
 from datetime import datetime
+from azure_sql_helper import upsert_andamento_base
 
 # Carrega as variáveis de ambiente
 load_dotenv('config.env')
@@ -461,7 +462,8 @@ async def run():
         # --- SELEÇÃO DA LICENÇA CORRETA USANDO CURRENT-VALUE ---
         print("Selecionando a licença usando current-value...")
         try:
-            license_specific_value = "64ee2867d98cf01183cb12fc83a1b95d"
+            # ATUALIZADO: current-value mudou para 321230142ac9f01183ce12fc83a1b95d
+            license_specific_value = "321230142ac9f01183ce12fc83a1b95d"
             license_selector = f'saf-radio[current-value="{license_specific_value}"] >> input[part="control"]'
             
             print(f"Valor da licença: {license_specific_value}")
@@ -681,6 +683,17 @@ async def run():
                     
                     if success:
                         print("Dados inseridos/atualizados no Supabase com sucesso!")
+                        
+                        # Inserir/atualizar também no Azure SQL Database
+                        print("\n[AZURE] Inserindo/atualizando dados no Azure SQL Database...")
+                        try:
+                            azure_success = upsert_andamento_base(df_processed, "andamento_base")
+                            if azure_success:
+                                print("✅ Dados inseridos/atualizados no Azure SQL Database com sucesso!")
+                            else:
+                                print("❌ Falha ao inserir/atualizar dados no Azure SQL Database.")
+                        except Exception as e:
+                            print(f"❌ Erro ao inserir no Azure SQL Database: {e}")
                         
                         # Limpar arquivo baixado após processamento bem-sucedido
                         try:
