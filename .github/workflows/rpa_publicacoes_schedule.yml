@@ -1,15 +1,12 @@
-name: RPA Agenda - Agendamento Automático
+name: RPA Publicações - Agendamento Automático
 
 on:
   schedule:
-    # Executa às 11:00, 14:00 e 16:00 (horário de São Paulo)
+    # Executa às 05:00 (horário de São Paulo) de terça a sábado
     # Cron: minuto hora dia mês dia_da_semana
-    # 0 14 * * * = 14:00 UTC (11:00 BRT) - Diariamente
-    # 0 17 * * * = 17:00 UTC (14:00 BRT) - Diariamente  
-    # 0 19 * * * = 19:00 UTC (16:00 BRT) - Diariamente
-    - cron: '0 14 * * *'  # 11:00 BRT (14:00 UTC)
-    - cron: '0 17 * * *'  # 14:00 BRT (17:00 UTC)
-    - cron: '0 19 * * *'  # 16:00 BRT (19:00 UTC)
+    # 0 8 * * 2-6 = 08:00 UTC (05:00 BRT) - Terça a Sábado
+    # Terça = 2, Quarta = 3, Quinta = 4, Sexta = 5, Sábado = 6
+    - cron: '0 8 * * 2-6'  # 05:00 BRT (08:00 UTC) - Terça a Sábado
   
   # Permite execução manual
   workflow_dispatch:
@@ -30,8 +27,8 @@ env:
   GITHUB_ACTIONS: true
 
 jobs:
-  rpa-agenda:
-    name: Executar RPA Agenda
+  rpa-publicacoes:
+    name: Executar RPA Publicações
     runs-on: ubuntu-latest
     
     # Configurar timezone
@@ -78,7 +75,7 @@ jobs:
         pip install -r requirements.txt
         pip install playwright
         playwright install chromium
-        # Instalar dependências do Playwright manualmente (evitar libasound2)
+        # Instalar dependências do Playwright manualmente
         sudo apt-get install -y \
           libnss3 \
           libatk-bridge2.0-0 \
@@ -114,16 +111,19 @@ jobs:
         mkdir -p downloads
         echo "Diretório de downloads criado"
     
-    - name: Executar RPA Agenda
+    - name: Executar RPA Publicações
       run: |
-        echo "Iniciando RPA Agenda..."
+        echo "Iniciando RPA Publicações..."
         echo "Horário atual: $(date)"
         echo "Modo headless: $HEADLESS"
+        echo "URL do relatório: https://robertomatos.novajus.com.br/processos/GenericReport/?id=678"
+        echo "Arquivo esperado: z-rpa-publicacoes.xlsx (ou similar)"
+        echo "Processamento: INSERT na tabela tb_publicacoes"
         
-        # Executar o RPA principal
-        python rpa_agenda_rmb.py
+        # Executar o RPA de publicações
+        python rpa_publicacoes_extracao.py
         
-        echo "RPA Agenda concluído!"
+        echo "RPA Publicações concluído!"
     
     - name: Verificar arquivos baixados
       run: |
@@ -137,7 +137,7 @@ jobs:
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: rpa-agenda-logs-${{ github.run_number }}
+        name: rpa-publicacoes-logs-${{ github.run_number }}
         path: |
           downloads/
           debug_*.png
@@ -146,27 +146,16 @@ jobs:
     - name: Notificar sucesso
       if: success()
       run: |
-        echo "✅ RPA Agenda executado com sucesso!"
+        echo "✅ RPA Publicações executado com sucesso!"
         echo "📅 Data/Hora: $(date)"
         echo "🔄 Próxima execução: Verificar cron schedule"
+        echo "📊 Processamento: INSERT na tabela tb_publicacoes"
+        echo "📋 Horário de execução: 05:00 BRT (08:00 UTC) - Terça a Sábado"
     
     - name: Notificar falha
       if: failure()
       run: |
-        echo "❌ RPA Agenda falhou!"
+        echo "❌ RPA Publicações falhou!"
         echo "📅 Data/Hora: $(date)"
         echo "🔍 Verifique os logs para mais detalhes"
 
-  # Job adicional para relatórios diários
-  daily-report:
-    name: Relatório Diário
-    runs-on: ubuntu-latest
-    if: github.event.schedule == '0 19 * * *'  # Apenas às 16h (última execução do dia)
-    
-    steps:
-    - name: Gerar relatório diário
-      run: |
-        echo "📊 Relatório Diário - RPA Agenda"
-        echo "📅 Data: $(date)"
-        echo "✅ Execuções automáticas funcionando normalmente"
-        echo "🔄 Próximas execuções: 11:00, 14:00 e 16:00 BRT (amanhã)"
