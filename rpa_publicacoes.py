@@ -4,7 +4,16 @@ import asyncio
 import asyncpg
 from pathlib import Path
 from dotenv import load_dotenv
-from azure_sql_helper import insert_publicacoes
+
+# Importação opcional do azure_sql_helper (pode falhar no Linux se drivers ODBC não estiverem instalados)
+try:
+    from azure_sql_helper import insert_publicacoes
+    AZURE_SQL_AVAILABLE = True
+except ImportError as e:
+    print(f"[AVISO] azure_sql_helper nao disponivel: {e}")
+    print("[AVISO] Funcionalidade de Azure SQL Database desabilitada")
+    AZURE_SQL_AVAILABLE = False
+    insert_publicacoes = None
 
 load_dotenv()
 

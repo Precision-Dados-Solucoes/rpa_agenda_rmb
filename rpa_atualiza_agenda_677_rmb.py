@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-RPA para Atualização de Agenda RMB - Relatório 677
-Automatiza a extração do relatório de atualização de agenda do Legal One/Novajus
+RPA para Atualização de Concluídos RMB
+Automatiza a extração do relatório de atualização de concluídos do Legal One/Novajus
 URL: https://robertomatos.novajus.com.br/agenda/GenericReport/?id=677
-Arquivo esperado: z-rpa_atualiza_agenda_677_rmb_queeue.xlsx
+Arquivo esperado: z-rpa_atualiza_concluidos_rmb_queeue.xlsx
 Processamento: UPDATE na tabela agenda_base usando id_legalone como chave
 """
 
@@ -15,7 +15,6 @@ import asyncpg
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import psycopg2
-from azure_sql_helper import upsert_agenda_base
 
 # Carrega as variáveis de ambiente do arquivo config.env
 load_dotenv('config.env')
@@ -26,15 +25,7 @@ load_dotenv('config.env')
 downloads_dir = "downloads"
 if not os.path.exists(downloads_dir):
     os.makedirs(downloads_dir)
-import sys
-# Forçar encoding UTF-8 e flush imediato
-if sys.stdout.encoding != 'utf-8':
-    try:
-        sys.stdout.reconfigure(encoding='utf-8')
-    except:
-        pass
-
-print(f"A pasta de downloads será: {os.path.abspath(downloads_dir)}", flush=True)
+print(f"A pasta de downloads será: {os.path.abspath(downloads_dir)}")
 
 async def close_any_known_popup(page):
     """
@@ -847,92 +838,42 @@ def update_data_to_supabase_psycopg2(df, table_name):
         return False
 
 async def run():
-    try:
-        print("\n" + "="*70)
-        print("🚀 INICIANDO RPA - ETAPA: Criação do navegador")
-        print("="*70)
+    async with async_playwright() as p:
+        # Configuração automática do modo headless
+        # Detecta se está em ambiente sem interface gráfica (GitHub Actions, etc.)
+        headless_mode = os.getenv("HEADLESS", "true").lower() == "true"
         
-        async with async_playwright() as p:
-            # Configuração automática do modo headless
-            # FORÇAR MODO NÃO-HEADLESS PARA TESTE (mostrar interface gráfica)
-            headless_mode = False  # Sempre mostrar a tela para acompanhar
+        # Se estiver em ambiente CI/CD (GitHub Actions), força headless
+        if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
+            headless_mode = True
             
-            # Se estiver em ambiente CI/CD (GitHub Actions), força headless
-            if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
-                headless_mode = True
-                
-            print(f"📺 Modo: {'headless' if headless_mode else 'COM INTERFACE GRÁFICA (VISÍVEL)'}")
-            print(f"🔍 DEBUG: Iniciando navegador Chromium...")
-            try:
-                browser = await p.chromium.launch(headless=headless_mode)
-                print(f"✅ Navegador iniciado com sucesso!")
-            except Exception as e:
-                print(f"❌ ERRO FATAL ao iniciar navegador: {e}")
-                import traceback
-                traceback.print_exc()
-                return
-            
-            chrome_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" 
-            print(f"🔍 DEBUG: Criando contexto do navegador...")
-            try:
-                context = await browser.new_context(user_agent=chrome_user_agent)
-                print(f"✅ Contexto criado com sucesso!")
-            except Exception as e:
-                print(f"❌ ERRO ao criar contexto: {e}")
-                import traceback
-                traceback.print_exc()
-                await browser.close()
-                return
-            
-            print(f"🔍 DEBUG: Criando nova página...")
-            try:
-                page = await context.new_page()
-                print(f"✅ Página criada com sucesso!")
-            except Exception as e:
-                print(f"❌ ERRO ao criar página: {e}")
-                import traceback
-                traceback.print_exc()
-                await browser.close()
-                return
+        print(f"Executando em modo {'headless' if headless_mode else 'com interface gráfica'}")
+        browser = await p.chromium.launch(headless=headless_mode)
+        
+        chrome_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" 
+        context = await browser.new_context(user_agent=chrome_user_agent)
+        
+        page = await context.new_page()
 
         # --- CREDENCIAIS DE LOGIN NO SISTEMA NOVAJUS ---
         USERNAME = os.getenv("NOVAJUS_USERNAME", "cleiton.sanches@precisionsolucoes.com")
         PASSWORD = os.getenv("NOVAJUS_PASSWORD", "PDS2025@")
 
         # --- ETAPA 1: NAVEGAR PARA A PÁGINA DE LOGIN ---
-        print("\n" + "="*70)
-        print("📍 ETAPA 1: NAVEGANDO PARA PÁGINA DE LOGIN")
-        print("="*70)
         novajus_login_url = "https://login.novajus.com.br/conta/login" 
-        print(f"🌐 URL: {novajus_login_url}")
-        print(f"⏳ Navegando...")
+        print(f"Navegando para {novajus_login_url}...")
         
         try:
             await page.goto(novajus_login_url, wait_until="domcontentloaded", timeout=60000) 
-            print(f"✅ Página carregada!")
-            print(f"📍 URL atual: {page.url}")
+            print(f"DEBUG: URL atual após page.goto(): {page.url}")
             await page.screenshot(path="debug_initial_page.png", full_page=True)
-            print("📸 Screenshot salvo: debug_initial_page.png")
-        except TimeoutError as e:
-            print(f"❌ ERRO: Timeout ao navegar para página de login")
-            print(f"🔍 Erro: {e}")
+            print("DEBUG: Captura de tela 'debug_initial_page.png' tirada após page.goto().")
+        except TimeoutError:
             print(f"Erro FATAL: page.goto() para {novajus_login_url} excedeu o tempo limite. Verifique sua conexão ou a URL.")
-            await page.screenshot(path="debug_login_timeout_error.png", full_page=True)
-            print("📸 Screenshot de erro salvo: debug_login_timeout_error.png")
-            if not headless_mode:
-                print("⏸️  Mantendo navegador aberto por 30 segundos para inspeção...")
-                await page.wait_for_timeout(30000)
             await browser.close()
             return
         except Exception as e:
-            print(f"❌ ERRO INESPERADO ao navegar para a página de login: {e}")
-            import traceback
-            traceback.print_exc()
-            await page.screenshot(path="debug_login_unexpected_error.png", full_page=True)
-            print("📸 Screenshot de erro salvo: debug_login_unexpected_error.png")
-            if not headless_mode:
-                print("⏸️  Mantendo navegador aberto por 30 segundos para inspeção...")
-                await page.wait_for_timeout(30000)
+            print(f"Erro inesperado ao navegar para a página de login: {e}")
             await browser.close()
             return
 
@@ -1031,8 +972,7 @@ async def run():
         print("Selecionando a licença usando current-value...")
         try:
             # Valor específico da licença (robertomatos - cleiton.sanches)
-            # ATUALIZADO: current-value mudou para 321230142ac9f01183ce12fc83a1b95d
-            license_specific_value = "321230142ac9f01183ce12fc83a1b95d"
+            license_specific_value = "64ee2867d98cf01183cb12fc83a1b95d"
             
             # Seletor para o saf-radio com o current-value específico
             license_selector = f'saf-radio[current-value="{license_specific_value}"] >> input[part="control"]'
@@ -1099,7 +1039,7 @@ async def run():
         await close_any_known_popup(page)
 
         # --- ETAPA 6: NAVEGAR PARA O RELATÓRIO ---
-        report_url = "https://robertomatos.novajus.com.br/agenda/GenericReport/?id=677"
+        report_url = "https://robertomatos.novajus.com.br/agenda/GenericReport/?id=673"
         print(f"Navegando para o relatório: {report_url}...")
         try:
             await page.goto(report_url, wait_until="domcontentloaded", timeout=60000)
@@ -1264,17 +1204,6 @@ async def run():
                 if success:
                     print("✅ Dados atualizados no Supabase com sucesso!")
                     
-                    # Inserir/atualizar também no Azure SQL Database
-                    print("\n[AZURE] Inserindo/atualizando dados no Azure SQL Database...")
-                    try:
-                        azure_success = upsert_agenda_base(df_processed, "agenda_base")
-                        if azure_success:
-                            print("✅ Dados inseridos/atualizados no Azure SQL Database com sucesso!")
-                        else:
-                            print("❌ Falha ao inserir/atualizar dados no Azure SQL Database.")
-                    except Exception as e:
-                        print(f"❌ Erro ao inserir no Azure SQL Database: {e}")
-                    
                     # Limpar arquivo baixado após processamento bem-sucedido
                     try:
                         if os.path.exists(file_path):
@@ -1336,10 +1265,6 @@ async def run():
         
         await browser.close()
         return
-
-        # --- CÓDIGO REMOVIDO TEMPORARIAMENTE PARA INSPEÇÃO ---
-        # Todo o código após o login foi removido para permitir inspeção
-        # Será restaurado após identificar as alterações necessárias
 
 # --- NOVA FUNÇÃO PARA TESTAR APENAS A INSERÇÃO NO SUPABASE ---
 async def test_supabase_insertion():
@@ -1403,17 +1328,6 @@ async def test_supabase_insertion():
             print("Processamento e inserção no Supabase concluídos!")
         else:
             print("Falha no processamento e inserção no Supabase.")
-        
-        # 3. Inserir/atualizar também no Azure SQL Database
-        print("\n[AZURE] Inserindo/atualizando dados no Azure SQL Database...")
-        try:
-            azure_success = upsert_agenda_base(df_report, "agenda_base")
-            if azure_success:
-                print("✅ Dados inseridos/atualizados no Azure SQL Database com sucesso!")
-            else:
-                print("❌ Falha ao inserir/atualizar dados no Azure SQL Database.")
-        except Exception as e:
-            print(f"❌ Erro ao inserir no Azure SQL Database: {e}")
     elif df_report is not None and df_report.empty:
         print("O arquivo de teste está vazio, nada para inserir no Supabase.")
     else:
@@ -1424,64 +1338,8 @@ async def test_supabase_insertion():
 
 # --- Execução principal do script ---
 if __name__ == "__main__":
-    import sys
-    import datetime
-    
-    # Criar arquivo de log para capturar todos os erros
-    log_file = f"rpa_error_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-    
-    class TeeOutput:
-        """Classe para escrever simultaneamente no console e no arquivo"""
-        def __init__(self, *files):
-            self.files = files
-        def write(self, obj):
-            for f in self.files:
-                f.write(obj)
-                f.flush()
-        def flush(self):
-            for f in self.files:
-                f.flush()
-    
-    # Redirecionar stdout e stderr para arquivo e console
-    log_f = open(log_file, 'w', encoding='utf-8')
-    original_stdout = sys.stdout
-    original_stderr = sys.stderr
-    sys.stdout = TeeOutput(sys.stdout, log_f)
-    sys.stderr = TeeOutput(sys.stderr, log_f)
-    
-    try:
-        # Forçar encoding UTF-8
-        if sys.stdout.encoding != 'utf-8':
-            try:
-                sys.stdout.reconfigure(encoding='utf-8')
-            except:
-                pass
-        
-        print("="*70)
-        print("🚀 INICIANDO RPA ATUALIZAÇÃO AGENDA 677")
-        print(f"📝 Log sendo salvo em: {log_file}")
-        print("="*70)
-        # Para rodar o teste de inserção no Supabase:
-        # asyncio.run(test_supabase_insertion())
+    # Para rodar o teste de inserção no Supabase:
+    # asyncio.run(test_supabase_insertion())
 
-        # Para rodar a automação COMPLETA:
-        asyncio.run(run())
-        print("\n" + "="*70)
-        print("✅ RPA FINALIZADO")
-        print("="*70)
-    except KeyboardInterrupt:
-        print("\n⚠️  RPA interrompido pelo usuário (Ctrl+C)")
-    except Exception as e:
-        print(f"\n❌ ERRO FATAL no RPA: {e}")
-        import traceback
-        traceback.print_exc()
-        print("\n" + "="*70)
-        print("❌ RPA FINALIZADO COM ERRO")
-        print(f"📝 Erro completo salvo em: {log_file}")
-        print("="*70)
-    finally:
-        # Restaurar stdout e stderr
-        sys.stdout = original_stdout
-        sys.stderr = original_stderr
-        log_f.close()
-        print(f"\n📝 Log completo salvo em: {log_file}")
+    # Para rodar a automação COMPLETA (descomente a linha abaixo e comente a de cima):
+    asyncio.run(run())

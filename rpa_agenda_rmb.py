@@ -6,7 +6,16 @@ import asyncpg
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import psycopg2
-from azure_sql_helper import upsert_agenda_base
+
+# Importação opcional do azure_sql_helper (pode falhar no Linux se drivers ODBC não estiverem instalados)
+try:
+    from azure_sql_helper import upsert_agenda_base
+    AZURE_SQL_AVAILABLE = True
+except ImportError as e:
+    print(f"[AVISO] azure_sql_helper nao disponivel: {e}")
+    print("[AVISO] Funcionalidade de Azure SQL Database desabilitada")
+    AZURE_SQL_AVAILABLE = False
+    upsert_agenda_base = None
 
 # --- INSTALAÇÃO DE BIBLIOTECAS (rode estes comandos no seu terminal se ainda não o fez): ---
 # pip install pandas
@@ -1295,16 +1304,20 @@ async def test_supabase_insertion():
         else:
             print("Falha no processamento e inserção no Supabase.")
         
-        # 3. Inserir/atualizar também no Azure SQL Database
-        print("\n[AZURE] Inserindo/atualizando dados no Azure SQL Database...")
-        try:
-            azure_success = upsert_agenda_base(df_report, "agenda_base")
-            if azure_success:
-                print("✅ Dados inseridos/atualizados no Azure SQL Database com sucesso!")
-            else:
-                print("❌ Falha ao inserir/atualizar dados no Azure SQL Database.")
-        except Exception as e:
-            print(f"❌ Erro ao inserir no Azure SQL Database: {e}")
+        # 3. Inserir/atualizar também no Azure SQL Database (se disponível)
+        if AZURE_SQL_AVAILABLE and upsert_agenda_base:
+            print("\n[AZURE] Inserindo/atualizando dados no Azure SQL Database...")
+            try:
+                azure_success = upsert_agenda_base(df_report, "agenda_base")
+                if azure_success:
+                    print("✅ Dados inseridos/atualizados no Azure SQL Database com sucesso!")
+                else:
+                    print("❌ Falha ao inserir/atualizar dados no Azure SQL Database.")
+            except Exception as e:
+                print(f"❌ Erro ao inserir no Azure SQL Database: {e}")
+        else:
+            print("\n[AVISO] Azure SQL Database nao disponivel (drivers ODBC nao instalados ou modulo nao disponivel)")
+            print("[INFO] Dados foram salvos apenas no Supabase")
     elif df_report is not None and df_report.empty:
         print("O arquivo de teste está vazio, nada para inserir no Supabase.")
     else:

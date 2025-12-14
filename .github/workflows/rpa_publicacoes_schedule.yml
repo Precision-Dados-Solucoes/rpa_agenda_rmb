@@ -67,7 +67,34 @@ jobs:
           libasound2t64 \
           libatspi2.0-0 \
           libgtk-3-0 \
-          libgdk-pixbuf2.0-0
+          libgdk-pixbuf2.0-0 \
+          curl \
+          gnupg2 \
+          apt-transport-https
+    
+    - name: Instalar drivers ODBC para SQL Server
+      run: |
+        # Instalar unixODBC (base para pyodbc)
+        sudo apt-get install -y unixodbc unixodbc-dev || echo "AVISO: Falha ao instalar unixODBC"
+        
+        # Tentar instalar Microsoft ODBC Driver for SQL Server (opcional)
+        # Se falhar, o script continuará funcionando sem Azure SQL
+        echo "Tentando instalar drivers ODBC da Microsoft..."
+        if curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg 2>/dev/null; then
+          UBUNTU_VERSION=$(lsb_release -rs)
+          echo "Ubuntu version: $UBUNTU_VERSION"
+          echo "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/${UBUNTU_VERSION}/prod $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 2>/dev/null || \
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17 2>/dev/null || \
+          echo "AVISO: Drivers ODBC da Microsoft nao instalados (Azure SQL pode nao funcionar)"
+        else
+          echo "AVISO: Nao foi possivel configurar repositorio Microsoft (Azure SQL pode nao funcionar)"
+        fi
+        
+        # Verificar drivers instalados
+        echo "Drivers ODBC instalados:"
+        odbcinst -q -d 2>/dev/null || echo "AVISO: Nenhum driver ODBC encontrado (Azure SQL pode nao funcionar)"
     
     - name: Instalar dependências Python
       run: |
@@ -75,6 +102,8 @@ jobs:
         pip install -r requirements.txt
         pip install playwright
         playwright install chromium
+        # Verificar se pyodbc foi instalado corretamente
+        python -c "import pyodbc; print('pyodbc instalado com sucesso')" || echo "AVISO: pyodbc pode ter problemas no Linux"
         # Instalar dependências do Playwright manualmente
         sudo apt-get install -y \
           libnss3 \

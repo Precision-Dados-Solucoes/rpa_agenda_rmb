@@ -14,7 +14,16 @@ import pandas as pd
 import asyncpg
 from dotenv import load_dotenv
 from pathlib import Path
-from azure_sql_helper import insert_publicacoes
+
+# Importação opcional do azure_sql_helper (pode falhar no Linux se drivers ODBC não estiverem instalados)
+try:
+    from azure_sql_helper import insert_publicacoes
+    AZURE_SQL_AVAILABLE = True
+except ImportError as e:
+    print(f"[AVISO] azure_sql_helper nao disponivel: {e}")
+    print("[AVISO] Funcionalidade de Azure SQL Database desabilitada")
+    AZURE_SQL_AVAILABLE = False
+    insert_publicacoes = None
 
 # Carrega as variáveis de ambiente do arquivo config.env
 load_dotenv('config.env')
@@ -654,8 +663,8 @@ async def run():
                         print("="*70)
                         success = await inserir_dados_supabase(df_processed, "tb_publicacoes")
                         
-                        # Inserir também no Azure SQL Database
-                        if success:
+                        # Inserir também no Azure SQL Database (se disponível)
+                        if success and AZURE_SQL_AVAILABLE and insert_publicacoes:
                             print("\n[AZURE] Inserindo dados no Azure SQL Database...")
                             try:
                                 azure_success = insert_publicacoes(df_processed, "publicacoes")
@@ -665,6 +674,9 @@ async def run():
                                     print("❌ Falha ao inserir dados no Azure SQL Database.")
                             except Exception as e:
                                 print(f"❌ Erro ao inserir no Azure SQL Database: {e}")
+                        elif success:
+                            print("\n[AVISO] Azure SQL Database nao disponivel (drivers ODBC nao instalados ou modulo nao disponivel)")
+                            print("[INFO] Dados foram salvos apenas no Supabase")
                         
                         if success:
                             print("\n" + "="*70)
