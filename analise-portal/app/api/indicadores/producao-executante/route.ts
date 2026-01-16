@@ -22,17 +22,31 @@ export async function GET(request: NextRequest) {
     // Aplicar filtro de executantes autorizados (se não for administrador)
     const whereBaseComPermissoes = construirWherePermissoes(permissoes, whereBase)
 
+    // Construir where final, evitando conflito entre filtro de permissões e not: null
+    const whereFinal: any = {
+      ...whereBaseComPermissoes,
+      status: {
+        in: ['Cumprido', 'Cumprido com parecer'],
+      },
+    }
+    
+    // Se não houver filtro de executante aplicado, adicionar "not: null"
+    // Se já houver filtro "in", o Prisma já vai filtrar apenas os valores na lista
+    if (!whereBaseComPermissoes.executante) {
+      whereFinal.executante = { not: null }
+    } else if (whereBaseComPermissoes.executante && typeof whereBaseComPermissoes.executante === 'object' && whereBaseComPermissoes.executante.in) {
+      // Se tem filtro "in", manter apenas esse (os valores na lista já não incluem null)
+      whereFinal.executante = whereBaseComPermissoes.executante
+    } else if (typeof whereBaseComPermissoes.executante === 'string') {
+      // Se é string específica, manter
+      whereFinal.executante = whereBaseComPermissoes.executante
+    }
+    
+    console.log('[DEBUG producao-executante] Where final:', JSON.stringify(whereFinal))
+    
     // Buscar registros com status "Cumprido" ou "Cumprido com parecer"
     const registros = await prisma.agendaBase.findMany({
-      where: {
-        ...whereBaseComPermissoes,
-        status: {
-          in: ['Cumprido', 'Cumprido com parecer'],
-        },
-        executante: {
-          not: null,
-        },
-      },
+      where: whereFinal,
       select: {
         id_legalone: true,
         executante: true,

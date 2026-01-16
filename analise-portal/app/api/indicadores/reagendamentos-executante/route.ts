@@ -40,17 +40,31 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Construir where final, evitando conflito entre filtro de permissões e not: null
+    const whereFinal: any = {
+      ...whereBaseComPermissoes,
+      id_legalone: {
+        in: Array.from(idsAgenda).map((id) => BigInt(id)),
+      },
+    }
+    
+    // Se não houver filtro de executante aplicado, adicionar "not: null"
+    // Se já houver filtro "in", o Prisma já vai filtrar apenas os valores na lista
+    if (!whereBaseComPermissoes.executante) {
+      whereFinal.executante = { not: null }
+    } else if (whereBaseComPermissoes.executante && typeof whereBaseComPermissoes.executante === 'object' && whereBaseComPermissoes.executante.in) {
+      // Se tem filtro "in", manter apenas esse (os valores na lista já não incluem null)
+      whereFinal.executante = whereBaseComPermissoes.executante
+    } else if (typeof whereBaseComPermissoes.executante === 'string') {
+      // Se é string específica, manter
+      whereFinal.executante = whereBaseComPermissoes.executante
+    }
+    
+    console.log('[DEBUG reagendamentos-executante] Where final:', JSON.stringify(whereFinal))
+    
     // Buscar agendas que correspondem aos andamentos e aplicar filtros
     const agendas = await prisma.agendaBase.findMany({
-      where: {
-        ...whereBaseComPermissoes,
-        id_legalone: {
-          in: Array.from(idsAgenda).map((id) => BigInt(id)),
-        },
-        executante: {
-          not: null,
-        },
-      },
+      where: whereFinal,
       select: {
         id_legalone: true,
         executante: true,
