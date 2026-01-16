@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { verifyToken } from '@/lib/auth'
-import { enviarEmailBoasVindas } from '@/lib/email'
+// import { enviarEmailBoasVindas } from '@/lib/email' // Desabilitado temporariamente
 
 /**
  * GET /api/usuarios
