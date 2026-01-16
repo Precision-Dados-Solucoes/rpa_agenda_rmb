@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { verifyToken } from '@/lib/auth'
+import { enviarEmailBoasVindas } from '@/lib/email'
 
 /**
  * GET /api/usuarios
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
       ? JSON.stringify([]) // Array vazio significa todos os executantes
       : JSON.stringify(executantes || [])
 
-    // Hash da senha
+    // Hash da senha (ANTES de criar o usuário, para poder enviar a senha original por email)
     const senhaHash = await bcrypt.hash(senha, 10)
 
     // Criar usuário
@@ -183,6 +184,15 @@ export async function POST(request: NextRequest) {
         updated_at: true,
       },
     })
+
+    // Enviar email de boas-vindas (usando a senha original ANTES de criptografar)
+    // Não bloquear a criação do usuário se o email falhar
+    try {
+      await enviarEmailBoasVindas(email, nome, senha)
+    } catch (emailError) {
+      console.error('Erro ao enviar email de boas-vindas (usuário criado mesmo assim):', emailError)
+      // Continuar mesmo se o email falhar - o usuário já foi criado
+    }
 
     return NextResponse.json({ usuario: novoUsuario }, { status: 201 })
   } catch (error) {
