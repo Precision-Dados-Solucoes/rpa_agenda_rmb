@@ -195,9 +195,30 @@ export default function DashboardAgendaPage() {
       }
     }
 
-    setFiltrosExternos({
-      prazoFatalFrom: dataFrom,
-      prazoFatalTo: dataTo,
+    // Atualizar filtros diretamente, mesclando com os filtros existentes
+    setFiltros((prev) => {
+      if (!prev) {
+        return {
+          executante: 'Todos',
+          status: 'Todos',
+          complexidade: 'Todos',
+          tipo: 'Todos',
+          pasta: 'Todos',
+          dataInicioFrom: '',
+          dataInicioTo: '',
+          conclusaoPrevistaFrom: '',
+          conclusaoPrevistaTo: '',
+          conclusaoEfetivaFrom: '',
+          conclusaoEfetivaTo: '',
+          prazoFatalFrom: dataFrom || '',
+          prazoFatalTo: dataTo || '',
+        }
+      }
+      return {
+        ...prev,
+        prazoFatalFrom: dataFrom || '',
+        prazoFatalTo: dataTo || '',
+      }
     })
   }, [])
 
