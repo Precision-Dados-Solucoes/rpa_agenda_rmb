@@ -149,18 +149,39 @@ export default function DebugPermissoesPage() {
                         <strong>Executantes Autorizados:</strong>
                         <div className="mt-1">
                           {dados.localStorage.user.executantes_autorizados?.length > 0 ? (
-                            <ul className="list-disc list-inside">
-                              {dados.localStorage.user.executantes_autorizados.map((e: string) => (
-                                <li key={e}>{e}</li>
-                              ))}
-                            </ul>
+                            <>
+                              <ul className="list-disc list-inside">
+                                {dados.localStorage.user.executantes_autorizados.map((e: string) => (
+                                  <li key={e}>{e}</li>
+                                ))}
+                              </ul>
+                              {dados.localStorage.user.role !== 'administrador' && (
+                                <p className="text-sm text-blue-600 mt-2 p-2 bg-blue-50 rounded">
+                                  ✅ Você tem acesso APENAS a estes executantes. Os gráficos devem mostrar apenas dados deles.
+                                </p>
+                              )}
+                            </>
                           ) : (
-                            <span className="text-yellow-600">
-                              ⚠️ Array vazio = acesso a TODOS os executantes
-                            </span>
+                            <>
+                              <span className="text-yellow-600">
+                                ⚠️ Array vazio = acesso a TODOS os executantes (sem restrição)
+                              </span>
+                              {dados.localStorage.user.role !== 'administrador' && (
+                                <p className="text-sm text-orange-600 mt-2 p-2 bg-orange-50 rounded">
+                                  ⚠️ ATENÇÃO: Como usuário comum, você deveria ter executantes específicos listados aqui. Se o array está vazio, você verá TODOS os dados, o que pode não ser o comportamento desejado.
+                                </p>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
+                      {dados.localStorage.user.role === 'administrador' && (
+                        <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                          <p className="text-sm text-blue-800">
+                            ℹ️ Como <strong>administrador</strong>, você tem acesso total a todos os dados, independente das permissões acima.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
