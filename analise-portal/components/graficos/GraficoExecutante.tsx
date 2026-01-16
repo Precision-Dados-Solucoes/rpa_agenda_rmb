@@ -193,7 +193,7 @@ export default function GraficoExecutante({ filtros }: GraficoExecutanteProps) {
               />
               <YAxis hide />
               <Tooltip
-                formatter={(value) => [typeof value === 'number' ? value.toLocaleString('pt-BR'), 'Quantidade']}
+                formatter={(value) => [typeof value === 'number' ? value.toLocaleString('pt-BR') : String(value || 0), 'Quantidade']}
                 labelFormatter={(label: string) => `Executante: ${label}`}
                 contentStyle={{
                   backgroundColor: '#fff',
@@ -208,7 +208,7 @@ export default function GraficoExecutante({ filtros }: GraficoExecutanteProps) {
                 <LabelList
                   dataKey="quantidade"
                   position="top"
-                  formatter={(value) => typeof value === 'number' ? value.toLocaleString('pt-BR')}
+                  formatter={(value) => typeof value === 'number' ? value.toLocaleString('pt-BR') : String(value || 0)}
                   style={{ fontSize: '12px', fill: '#374151', fontWeight: 500 }}
                 />
               </Bar>

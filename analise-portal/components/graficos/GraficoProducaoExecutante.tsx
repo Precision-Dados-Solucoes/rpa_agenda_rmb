@@ -201,7 +201,7 @@ export default function GraficoProducaoExecutante({ filtros }: GraficoProducaoEx
                   dataKey="comParecer"
                   position="right"
                   offset={10}
-                  formatter={(value) => typeof value === 'number' ? value.toLocaleString('pt-BR')}
+                  formatter={(value) => typeof value === 'number' ? value.toLocaleString('pt-BR') : String(value || 0)}
                   style={{ fill: '#374151', fontSize: '12px', fontWeight: 600 }}
                 />
               </Bar>

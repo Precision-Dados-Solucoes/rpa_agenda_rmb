@@ -120,7 +120,7 @@ export default function GraficoTipo({ filtros }: GraficoTipoProps) {
             />
             <YAxis hide />
             <Tooltip
-              formatter={(value) => [typeof value === 'number' ? value.toLocaleString('pt-BR'), 'Quantidade']}
+              formatter={(value) => [typeof value === 'number' ? value.toLocaleString('pt-BR') : String(value || 0), 'Quantidade']}
               contentStyle={{
                 backgroundColor: '#fff',
                 border: '1px solid #e5e7eb',
@@ -131,7 +131,7 @@ export default function GraficoTipo({ filtros }: GraficoTipoProps) {
               <LabelList
                 dataKey="quantidade"
                 position="top"
-                formatter={(value) => typeof value === 'number' ? value.toLocaleString('pt-BR')}
+                formatter={(value) => typeof value === 'number' ? value.toLocaleString('pt-BR') : String(value || 0)}
                 style={{ fontSize: '12px', fill: '#374151', fontWeight: 500 }}
               />
             </Bar>

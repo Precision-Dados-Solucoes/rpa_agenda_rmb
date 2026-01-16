@@ -155,7 +155,7 @@ export default function GraficoRetornosExecutante({ filtros }: GraficoRetornosEx
                 interval={0}
               />
               <Tooltip
-                formatter={(value) => [typeof value === 'number' ? value.toLocaleString('pt-BR'), 'Quantidade']}
+                formatter={(value) => [typeof value === 'number' ? value.toLocaleString('pt-BR') : String(value || 0), 'Quantidade']}
                 contentStyle={{
                   backgroundColor: '#fff',
                   border: '1px solid #e5e7eb',
@@ -167,7 +167,7 @@ export default function GraficoRetornosExecutante({ filtros }: GraficoRetornosEx
                   dataKey="quantidade"
                   position="right"
                   offset={10}
-                  formatter={(value) => typeof value === 'number' ? value.toLocaleString('pt-BR')}
+                  formatter={(value) => typeof value === 'number' ? value.toLocaleString('pt-BR') : String(value || 0)}
                   style={{ fill: '#374151', fontSize: '12px', fontWeight: 600 }}
                 />
               </Bar>
