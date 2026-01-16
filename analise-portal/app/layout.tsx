@@ -7,6 +7,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Portal de Análise de Dados',
   description: 'Sistema de análise de dados multi-tenant',
+  metadataBase: new URL(process.env.NEXTAUTH_URL || 'https://advromas.precisionsolucoes.com'),
 }
 
 export default function RootLayout({
