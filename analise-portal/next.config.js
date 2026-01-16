@@ -9,6 +9,11 @@ const nextConfig = {
     // Desabilitar verificação de lint durante o build (temporário)
     ignoreDuringBuilds: true,
   },
+  // Limitar workers para hospedagem compartilhada
+  experimental: {
+    workerThreads: false,
+    cpus: 1,
+  },
 };
 
 module.exports = nextConfig;
