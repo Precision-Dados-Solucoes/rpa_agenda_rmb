@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { construirWhere } from '@/lib/filtros-helper'
+import { obterPermissoesUsuario } from '@/lib/auth-helper'
+import { construirWherePermissoes } from '@/lib/permissoes-helper'
 
 /**
  * GET /api/indicadores
@@ -17,12 +19,18 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
 
+    // Obter permissões do usuário para aplicar filtro de executantes
+    const permissoes = await obterPermissoesUsuario(request)
+    
     // Construir where base usando o helper
     const whereBase = construirWhere(searchParams)
+    
+    // Aplicar filtro de executantes autorizados (se não for administrador)
+    const whereBaseComPermissoes = construirWherePermissoes(permissoes, whereBase)
 
     // 1. AGENDAS: Conta id_legalone únicos na agenda_base
     const agendasResult = await prisma.agendaBase.findMany({
-      where: whereBase,
+      where: whereBaseComPermissoes,
       select: {
         id_legalone: true,
       },
@@ -101,7 +109,7 @@ export async function GET(request: NextRequest) {
     
     // Aplicar filtros da agenda_base aos IDs produzidos
     const agendasFiltradas = await prisma.agendaBase.findMany({
-      where: whereBase,
+      where: whereBaseComPermissoes,
       select: {
         id_legalone: true,
       },
@@ -116,7 +124,7 @@ export async function GET(request: NextRequest) {
     // Para cada id_agenda_legalone com andamento relevante, comparar cadastro_andamento com inicio_data
     const agendasComInicio = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         inicio_data: {
           not: null,
         },
@@ -164,7 +172,7 @@ export async function GET(request: NextRequest) {
     // 4. CUMPRIDO: status = 'Cumprido'
     const cumpridoResult = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         status: 'Cumprido',
       },
       select: {
@@ -176,7 +184,7 @@ export async function GET(request: NextRequest) {
     // 5. COM PARECER: status = 'Cumprido com parecer'
     const comParecerResult = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         status: 'Cumprido com parecer',
       },
       select: {

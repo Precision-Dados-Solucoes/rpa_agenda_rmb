@@ -105,6 +105,19 @@ export function construirWherePermissoes(
   }
 
   // Adicionar filtro de executantes
+  // Se já houver um filtro de executante específico, fazer a intersecção
+  if (whereBase.executante) {
+    // Se o executante filtrado não está na lista de autorizados, retornar vazio
+    if (typeof whereBase.executante === 'string') {
+      if (!permissoes.executantes_autorizados.includes(whereBase.executante)) {
+        return { id_legalone: -1 } // Retornar vazio se o executante filtrado não está autorizado
+      }
+      // Se está autorizado, manter o filtro específico
+      return whereBase
+    }
+  }
+  
+  // Se não houver filtro específico, aplicar filtro de lista de autorizados
   return {
     ...whereBase,
     executante: {
