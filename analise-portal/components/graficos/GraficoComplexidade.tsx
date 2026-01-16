@@ -145,11 +145,11 @@ export default function GraficoComplexidade({ filtros }: GraficoComplexidadeProp
                 <Cell key={`cell-${index}`} fill={getCorComplexidade(entry.complexidade)} />
               ))}
             </Pie>
-            <Tooltip
-              formatter={(value: number, name: string, props: any) => [
-                value.toLocaleString('pt-BR'),
-                props.payload.complexidade
-              ]}
+              <Tooltip
+                formatter={(value, name, props: any) => [
+                  typeof value === 'number' ? value.toLocaleString('pt-BR') : String(value || 0),
+                  props.payload?.complexidade || name
+                ]}
               labelFormatter={() => ''}
               contentStyle={{
                 backgroundColor: '#fff',
