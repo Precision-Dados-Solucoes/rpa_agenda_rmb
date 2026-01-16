@@ -163,14 +163,15 @@ export default function GraficoComplexidadeExecutante({ filtros }: GraficoComple
                 interval={0}
               />
               <Tooltip
-                formatter={(value: number, name: string) => {
+                formatter={(value, name) => {
                   const labels: { [key: string]: string } = {
                     alta: 'Alta Complexidade',
                     media: 'Média Complexidade',
                     baixa: 'Baixa Complexidade',
                   }
-                  const label = labels[name] || name
-                  return [`${value.toFixed(1)}%`, label]
+                  const label = labels[String(name)] || String(name)
+                  const numValue = typeof value === 'number' ? value : 0
+                  return [`${numValue.toFixed(1)}%`, label]
                 }}
                 contentStyle={{
                   backgroundColor: '#fff',
