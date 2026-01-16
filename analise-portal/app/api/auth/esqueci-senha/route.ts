@@ -53,26 +53,51 @@ export async function POST(request: NextRequest) {
     const resetUrl = `${baseUrl}/redefinir-senha?token=${resetToken}`
 
     // Configurar transporter de email
-    // Usar variáveis de ambiente ou configuração padrão
-    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com'
-    const smtpPort = parseInt(process.env.SMTP_PORT || '587')
-    const smtpUser = process.env.SMTP_USER || ''
-    const smtpPass = process.env.SMTP_PASS || ''
-    const smtpFrom = process.env.SMTP_FROM || smtpUser
-
-    // Se não houver configuração SMTP, apenas logar (para desenvolvimento)
-    if (!smtpUser || !smtpPass) {
-      console.log('⚠️ SMTP não configurado. Link de reset:', resetUrl)
-      return NextResponse.json({
-        message: 'Se o email estiver cadastrado, você receberá as instruções.',
-        // Em desenvolvimento, retornar o link (remover em produção)
-        ...(process.env.NODE_ENV === 'development' && { resetUrl }),
+    // Priorizar Office 365 se as credenciais estiverem configuradas
+    const office365Email = process.env.OFFICE365_EMAIL || ''
+    const office365Password = process.env.OFFICE365_PASSWORD || ''
+    
+    let transporter: nodemailer.Transporter | null = null
+    let smtpFrom = ''
+    
+    // Se tiver credenciais do Office 365, usar
+    if (office365Email && office365Password) {
+      const smtpServer = process.env.SMTP_SERVER || 'smtp-mail.outlook.com'
+      const smtpPort = parseInt(process.env.SMTP_PORT || '587')
+      
+      transporter = nodemailer.createTransport({
+        host: smtpServer,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: office365Email,
+          pass: office365Password,
+        },
+        tls: {
+          ciphers: 'SSLv3',
+          rejectUnauthorized: false, // Para Office 365
+        },
       })
-    }
+      smtpFrom = office365Email
+    } else {
+      // Fallback para Gmail ou SMTP genérico
+      const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com'
+      const smtpPort = parseInt(process.env.SMTP_PORT || '587')
+      const smtpUser = process.env.SMTP_USER || ''
+      const smtpPass = process.env.SMTP_PASS || ''
+      smtpFrom = process.env.SMTP_FROM || smtpUser
 
-    // Enviar email
-    try {
-      const transporter = nodemailer.createTransport({
+      // Se não houver configuração SMTP, apenas logar (para desenvolvimento)
+      if (!smtpUser || !smtpPass) {
+        console.log('⚠️ SMTP não configurado. Link de reset:', resetUrl)
+        return NextResponse.json({
+          message: 'Se o email estiver cadastrado, você receberá as instruções.',
+          // Em desenvolvimento, retornar o link (remover em produção)
+          ...(process.env.NODE_ENV === 'development' && { resetUrl }),
+        })
+      }
+
+      transporter = nodemailer.createTransport({
         host: smtpHost,
         port: smtpPort,
         secure: smtpPort === 465,
@@ -81,6 +106,10 @@ export async function POST(request: NextRequest) {
           pass: smtpPass,
         },
       })
+    }
+
+    // Enviar email
+    try {
 
       const htmlContent = `
         <!DOCTYPE html>

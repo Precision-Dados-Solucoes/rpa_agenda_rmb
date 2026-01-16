@@ -2,13 +2,38 @@ import nodemailer from 'nodemailer'
 
 /**
  * Configura e retorna o transporter de email
+ * Suporta Office 365 e Gmail
  */
 function getEmailTransporter() {
+  // Priorizar Office 365 se as credenciais estiverem configuradas
+  const office365Email = process.env.OFFICE365_EMAIL || ''
+  const office365Password = process.env.OFFICE365_PASSWORD || ''
+  
+  // Se tiver credenciais do Office 365, usar
+  if (office365Email && office365Password) {
+    const smtpServer = process.env.SMTP_SERVER || 'smtp-mail.outlook.com'
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587')
+    
+    return nodemailer.createTransport({
+      host: smtpServer,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: office365Email,
+        pass: office365Password,
+      },
+      tls: {
+        ciphers: 'SSLv3',
+        rejectUnauthorized: false, // Para Office 365
+      },
+    })
+  }
+  
+  // Fallback para Gmail ou SMTP genérico
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com'
   const smtpPort = parseInt(process.env.SMTP_PORT || '587')
   const smtpUser = process.env.SMTP_USER || ''
   const smtpPass = process.env.SMTP_PASS || ''
-  const smtpFrom = process.env.SMTP_FROM || smtpUser
 
   if (!smtpUser || !smtpPass) {
     return null
@@ -38,6 +63,7 @@ export async function enviarEmailBoasVindas(
     
     if (!transporter) {
       console.log('⚠️ SMTP não configurado. Email de boas-vindas não enviado.')
+      console.log('💡 Configure OFFICE365_EMAIL e OFFICE365_PASSWORD ou SMTP_USER e SMTP_PASS')
       console.log(`📧 Dados do novo usuário: ${nome} (${email}) - Senha: ${senha}`)
       return false
     }
@@ -103,7 +129,11 @@ export async function enviarEmailBoasVindas(
       </html>
     `
 
-    const smtpFrom = process.env.SMTP_FROM || process.env.SMTP_USER || ''
+    // Determinar remetente (priorizar Office 365, depois SMTP genérico)
+    const smtpFrom = process.env.OFFICE365_EMAIL || 
+                     process.env.SMTP_FROM || 
+                     process.env.SMTP_USER || 
+                     ''
 
     await transporter.sendMail({
       from: smtpFrom,
