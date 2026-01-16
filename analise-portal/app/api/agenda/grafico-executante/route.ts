@@ -100,6 +100,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Buscar todos os registros
+    // Nota: whereQuery já contém o filtro de executantes autorizados
     const registros = await prisma.agendaBase.findMany({
       where: {
         ...whereQuery,

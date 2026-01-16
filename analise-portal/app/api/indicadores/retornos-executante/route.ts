@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { construirWhere } from '@/lib/filtros-helper'
+import { obterPermissoesUsuario } from '@/lib/auth-helper'
+import { construirWherePermissoes } from '@/lib/permissoes-helper'
 
 /**
  * GET /api/indicadores/retornos-executante
@@ -10,8 +12,14 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
 
+    // Obter permissões do usuário para aplicar filtro de executantes
+    const permissoes = await obterPermissoesUsuario(request)
+    
     // Construir where base usando o helper
     const whereBase = construirWhere(searchParams)
+    
+    // Aplicar filtro de executantes autorizados (se não for administrador)
+    const whereBaseComPermissoes = construirWherePermissoes(permissoes, whereBase)
 
     // Buscar andamentos do tipo "6. Retornado"
     const andamentos = await prisma.andamentoBase.findMany({
@@ -35,7 +43,7 @@ export async function GET(request: NextRequest) {
     // Buscar agendas que correspondem aos andamentos e aplicar filtros
     const agendas = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         id_legalone: {
           in: Array.from(idsAgenda).map((id) => BigInt(id)),
         },
