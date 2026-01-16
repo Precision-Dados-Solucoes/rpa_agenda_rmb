@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Permissões</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .result {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .error {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+        .success {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Teste de Permissões do Usuário</h1>
+        
+        <div>
+            <h2>1. Verificar localStorage</h2>
+            <button onclick="verificarLocalStorage()">Verificar localStorage</button>
+            <div id="result1" class="result" style="display:none;"></div>
+        </div>
+
+        <div>
+            <h2>2. Testar Endpoint de Debug</h2>
+            <button onclick="testarDebug()">Testar /api/debug/permissoes</button>
+            <div id="result2" class="result" style="display:none;"></div>
+        </div>
+
+        <div>
+            <h2>3. Verificar Token</h2>
+            <button onclick="verificarToken()">Verificar Token</button>
+            <div id="result3" class="result" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        function mostrarResultado(id, texto, tipo = 'info') {
+            const div = document.getElementById(id);
+            div.style.display = 'block';
+            div.className = `result ${tipo}`;
+            div.textContent = texto;
+        }
+
+        function verificarLocalStorage() {
+            try {
+                const userStr = localStorage.getItem('user');
+                const token = localStorage.getItem('token');
+
+                if (!userStr) {
+                    mostrarResultado('result1', '❌ Nenhum usuário encontrado no localStorage!\n\nFaça login primeiro.', 'error');
+                    return;
+                }
+
+                const user = JSON.parse(userStr);
+                
+                const resultado = `✅ Usuário encontrado no localStorage:
+
+📧 Email: ${user.email || 'N/A'}
+👤 Nome: ${user.nome || 'N/A'}
+🔑 Role: ${user.role || 'N/A'}
+
+📄 Páginas Autorizadas:
+${JSON.stringify(user.paginas_autorizadas || [], null, 2)}
+
+👥 Executantes Autorizados:
+${JSON.stringify(user.executantes_autorizados || [], null, 2)}
+
+🔐 Token: ${token ? 'Presente (' + token.substring(0, 20) + '...)' : 'AUSENTE!'}`;
+
+                mostrarResultado('result1', resultado, token ? 'success' : 'error');
+            } catch (error) {
+                mostrarResultado('result1', `❌ Erro: ${error.message}`, 'error');
+            }
+        }
+
+        async function testarDebug() {
+            try {
+                const token = localStorage.getItem('token');
+                
+                if (!token) {
+                    mostrarResultado('result2', '❌ Token não encontrado no localStorage!\n\nFaça login primeiro.', 'error');
+                    return;
+                }
+
+                mostrarResultado('result2', '⏳ Enviando requisição...', 'info');
+
+                const response = await fetch('/api/debug/permissoes', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                const resultado = `Status: ${response.status} ${response.statusText}
+
+Resposta:
+${JSON.stringify(data, null, 2)}`;
+
+                mostrarResultado('result2', resultado, response.ok ? 'success' : 'error');
+            } catch (error) {
+                mostrarResultado('result2', `❌ Erro: ${error.message}`, 'error');
+            }
+        }
+
+        function verificarToken() {
+            try {
+                const token = localStorage.getItem('token');
+                
+                if (!token) {
+                    mostrarResultado('result3', '❌ Token não encontrado no localStorage!', 'error');
+                    return;
+                }
+
+                // Tentar decodificar (sem validação completa)
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    mostrarResultado('result3', '❌ Token com formato inválido!', 'error');
+                    return;
+                }
+
+                try {
+                    const payload = JSON.parse(atob(parts[1]));
+                    const resultado = `✅ Token encontrado:
+
+📋 Payload decodificado:
+${JSON.stringify(payload, null, 2)}
+
+⏰ Expira em: ${payload.exp ? new Date(payload.exp * 1000).toLocaleString('pt-BR') : 'N/A'}`;
+                    
+                    mostrarResultado('result3', resultado, 'success');
+                } catch (e) {
+                    mostrarResultado('result3', `Token presente mas não foi possível decodificar: ${e.message}`, 'error');
+                }
+            } catch (error) {
+                mostrarResultado('result3', `❌ Erro: ${error.message}`, 'error');
+            }
+        }
+
+        // Executar automaticamente ao carregar
+        window.onload = function() {
+            console.log('Página de teste carregada. Clique nos botões para testar.');
+        };
+    </script>
+</body>
+</html>
