@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { construirWhere } from '@/lib/filtros-helper'
 import { aplicarFiltroSemaforo, detectarCategoriaSemaforo, construirWhereSemaforo } from '@/lib/filtro-semaforo-helper'
+import { obterPermissoesUsuario } from '@/lib/auth-helper'
+import { construirWherePermissoes } from '@/lib/permissoes-helper'
 
 /**
  * GET /api/agenda/grafico-tipo
@@ -13,9 +15,15 @@ export async function GET(request: NextRequest) {
     const prazoFatalFrom = searchParams.get('prazoFatalFrom')
     const prazoFatalTo = searchParams.get('prazoFatalTo')
     
+    // Obter permissões do usuário para aplicar filtro de executantes
+    const permissoes = await obterPermissoesUsuario(request)
+    
     let where = construirWhere(searchParams)
     const categoriaSemaforo = detectarCategoriaSemaforo(prazoFatalFrom, prazoFatalTo)
     where = construirWhereSemaforo(where, categoriaSemaforo)
+    
+    // Aplicar filtro de executantes autorizados (se não for administrador)
+    where = construirWherePermissoes(permissoes, where)
 
     // Buscar todos os registros que atendem aos filtros
     let registros = await prisma.agendaBase.findMany({

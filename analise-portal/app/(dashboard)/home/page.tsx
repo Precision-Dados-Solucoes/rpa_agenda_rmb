@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Calendar, BarChart3, Users, LogOut } from 'lucide-react'
+import { temAcessoPagina, PermissoesUsuario } from '@/lib/permissoes-helper'
 
 export default function HomePage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
+  const [permissoes, setPermissoes] = useState<PermissoesUsuario | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -20,7 +22,16 @@ export default function HomePage() {
       return
     }
 
-    setUser(JSON.parse(userStr))
+    const userData = JSON.parse(userStr)
+    setUser(userData)
+    
+    // Construir objeto de permissões
+    const permissoesData: PermissoesUsuario = {
+      paginas_autorizadas: userData.paginas_autorizadas || [],
+      executantes_autorizados: userData.executantes_autorizados || [],
+      role: userData.role || 'usuario',
+    }
+    setPermissoes(permissoesData)
     setLoading(false)
   }, [router])
 
@@ -113,26 +124,28 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          {/* Usuários */}
-          <Card className="hover:shadow-xl transition-all duration-300 cursor-pointer border-2 hover:border-purple-500 group h-full flex flex-col">
-            <CardContent className="p-8 flex flex-col flex-1">
-              <div
-                onClick={() => router.push('/dashboard/usuarios')}
-                className="flex flex-col items-center text-center h-full"
-              >
-                <div className="bg-purple-100 p-6 rounded-full group-hover:bg-purple-200 transition-colors">
-                  <Users className="h-12 w-12 text-purple-600" />
+          {/* Usuários - Apenas se tiver permissão */}
+          {temAcessoPagina(permissoes, 'gerenciamento_usuarios') && (
+            <Card className="hover:shadow-xl transition-all duration-300 cursor-pointer border-2 hover:border-purple-500 group h-full flex flex-col">
+              <CardContent className="p-8 flex flex-col flex-1">
+                <div
+                  onClick={() => router.push('/dashboard/usuarios')}
+                  className="flex flex-col items-center text-center h-full"
+                >
+                  <div className="bg-purple-100 p-6 rounded-full group-hover:bg-purple-200 transition-colors">
+                    <Users className="h-12 w-12 text-purple-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-800 mt-4">Usuários</h3>
+                  <p className="text-gray-600 text-sm mt-2 flex-1">
+                    Gerencie usuários, permissões e acessos do sistema
+                  </p>
+                  <Button className="w-full mt-4" variant="default">
+                    Acessar
+                  </Button>
                 </div>
-                <h3 className="text-xl font-bold text-slate-800 mt-4">Usuários</h3>
-                <p className="text-gray-600 text-sm mt-2 flex-1">
-                  Gerencie usuários, permissões e acessos do sistema
-                </p>
-                <Button className="w-full mt-4" variant="default">
-                  Acessar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { aplicarFiltroSemaforo, detectarCategoriaSemaforo, construirWhereSemaforo } from '@/lib/filtro-semaforo-helper'
+import { obterPermissoesUsuario } from '@/lib/auth-helper'
+import { construirWherePermissoes } from '@/lib/permissoes-helper'
 
 /**
  * GET /api/agenda/grafico-executante
@@ -80,9 +82,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Obter permissões do usuário para aplicar filtro de executantes
+    const permissoes = await obterPermissoesUsuario(request)
+    
     // Detectar categoria do semáforo e construir where
     const categoriaSemaforo = detectarCategoriaSemaforo(prazoFatalFrom, prazoFatalTo)
-    const whereQuery = construirWhereSemaforo(where, categoriaSemaforo)
+    let whereQuery = construirWhereSemaforo(where, categoriaSemaforo)
+    
+    // Aplicar filtro de executantes autorizados (se não for administrador)
+    whereQuery = construirWherePermissoes(permissoes, whereQuery)
 
     console.log('[DEBUG grafico-executante]', {
       prazoFatalFrom,

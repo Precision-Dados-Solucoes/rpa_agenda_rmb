@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { obterPermissoesUsuario } from '@/lib/auth-helper'
+import { construirWherePermissoes } from '@/lib/permissoes-helper'
 
 /**
  * GET /api/agenda/semaforo-fatal
@@ -77,10 +79,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Obter permissões do usuário para aplicar filtro de executantes
+    const permissoes = await obterPermissoesUsuario(request)
+    
+    // Aplicar filtro de executantes autorizados (se não for administrador)
+    const whereComPermissoes = construirWherePermissoes(permissoes, where)
+    
     // Buscar todos os registros com prazo_fatal_data (incluindo id_legalone para contar únicos)
     const registros = await prisma.agendaBase.findMany({
       where: {
-        ...where,
+        ...whereComPermissoes,
         prazo_fatal_data: {
           not: null,
         },

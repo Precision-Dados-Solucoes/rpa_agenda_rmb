@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { construirWhere } from '@/lib/filtros-helper'
+import { obterPermissoesUsuario } from '@/lib/auth-helper'
+import { construirWherePermissoes } from '@/lib/permissoes-helper'
 
 /**
  * GET /api/indicadores/andamentos-executante
@@ -10,11 +12,25 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
 
+    // Obter permissões do usuário para aplicar filtro de executantes
+    const permissoes = await obterPermissoesUsuario(request)
+    
     // Construir where base usando o helper
     const whereBase = construirWhere(searchParams)
+    
+    // Aplicar filtro de executantes autorizados (se não for administrador)
+    const whereBaseComPermissoes = construirWherePermissoes(permissoes, whereBase)
 
     // Construir condições WHERE para SQL de forma segura
     const whereConditions: string[] = ['a.executante IS NOT NULL']
+    
+    // Adicionar filtro de executantes autorizados se aplicável
+    if (whereBaseComPermissoes.executante && Array.isArray(whereBaseComPermissoes.executante.in)) {
+      const executantes = whereBaseComPermissoes.executante.in.map((e: string) => `N'${e.replace(/'/g, "''")}'`).join(', ')
+      whereConditions.push(`a.executante IN (${executantes})`)
+    } else if (whereBaseComPermissoes.executante) {
+      whereConditions.push(`a.executante = N'${String(whereBaseComPermissoes.executante).replace(/'/g, "''")}'`)
+    }
 
     if (whereBase.executante) {
       whereConditions.push(`a.executante = N'${whereBase.executante.replace(/'/g, "''")}'`)

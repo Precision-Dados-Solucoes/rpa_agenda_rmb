@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { construirWhere } from '@/lib/filtros-helper'
+import { obterPermissoesUsuario } from '@/lib/auth-helper'
+import { construirWherePermissoes } from '@/lib/permissoes-helper'
 
 /**
  * GET /api/indicadores/producao-executante
@@ -11,13 +13,19 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
 
+    // Obter permissões do usuário para aplicar filtro de executantes
+    const permissoes = await obterPermissoesUsuario(request)
+    
     // Construir where base usando o helper
     const whereBase = construirWhere(searchParams)
+    
+    // Aplicar filtro de executantes autorizados (se não for administrador)
+    const whereBaseComPermissoes = construirWherePermissoes(permissoes, whereBase)
 
     // Buscar registros com status "Cumprido" ou "Cumprido com parecer"
     const registros = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         status: {
           in: ['Cumprido', 'Cumprido com parecer'],
         },

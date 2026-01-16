@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { obterPermissoesUsuario } from '@/lib/auth-helper'
+import { construirWherePermissoes } from '@/lib/permissoes-helper'
 
 /**
  * GET /api/agenda/metricas
@@ -77,6 +79,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Obter permissões do usuário para aplicar filtro de executantes
+    const permissoes = await obterPermissoesUsuario(request)
+    
+    // Aplicar filtro de executantes autorizados (se não for administrador)
+    const whereBaseComPermissoes = construirWherePermissoes(permissoes, whereBase)
+    
     const hoje = new Date()
     hoje.setHours(0, 0, 0, 0)
     const amanha = new Date(hoje)
@@ -88,7 +96,7 @@ export async function GET(request: NextRequest) {
     // 1. Compromissos: COUNT DISTINCT id_legalone WHERE compromisso_tarefa = 'Compromisso'
     const compromissosResult = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         compromisso_tarefa: 'Compromisso',
       },
       select: {
@@ -100,7 +108,7 @@ export async function GET(request: NextRequest) {
     // 2. Tarefas: COUNT DISTINCT id_legalone WHERE compromisso_tarefa = 'Tarefa'
     const tarefasResult = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         compromisso_tarefa: 'Tarefa',
       },
       select: {
@@ -112,7 +120,7 @@ export async function GET(request: NextRequest) {
     // 3. Hoje: COUNT DISTINCT id_legalone WHERE inicio_data = TODAY()
     const hojeResult = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         inicio_data: {
           gte: hoje,
           lt: amanha,
@@ -128,7 +136,7 @@ export async function GET(request: NextRequest) {
     // Buscar compromissos de ontem com status Pendente
     const compromissosOntem = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         inicio_data: {
           gte: ontem,
           lt: hoje,
@@ -163,7 +171,7 @@ export async function GET(request: NextRequest) {
     // 5. Em conferência: Itens pendentes que têm andamento tipo "1. Produzido" ou "7. (Re) Produzido"
     const itensPendentes = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         status: 'Pendente',
       },
       select: {
@@ -183,7 +191,7 @@ export async function GET(request: NextRequest) {
     // 6. Fatal: COUNT DISTINCT id_legalone WHERE prazo_fatal_data = TODAY()
     const fatalResult = await prisma.agendaBase.findMany({
       where: {
-        ...whereBase,
+        ...whereBaseComPermissoes,
         prazo_fatal_data: {
           gte: hoje,
           lt: amanha,
