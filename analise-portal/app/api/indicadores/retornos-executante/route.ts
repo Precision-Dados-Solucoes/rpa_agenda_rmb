@@ -60,7 +60,22 @@ export async function GET(request: NextRequest) {
       whereFinal.executante = whereBaseComPermissoes.executante
     }
     
-    console.log('[DEBUG retornos-executante]', {
+    // Helper para serializar objetos com BigInt
+    const serializeForLog = (obj: any): any => {
+      if (obj === null || obj === undefined) return obj
+      if (typeof obj === 'bigint') return obj.toString()
+      if (Array.isArray(obj)) return obj.map(serializeForLog)
+      if (typeof obj === 'object') {
+        const result: any = {}
+        for (const key in obj) {
+          result[key] = serializeForLog(obj[key])
+        }
+        return result
+      }
+      return obj
+    }
+
+    console.log('[DEBUG retornos-executante]', serializeForLog({
       permissoes: permissoes ? {
         role: permissoes.role,
         executantes_count: permissoes.executantes_autorizados?.length || 0,
@@ -68,11 +83,11 @@ export async function GET(request: NextRequest) {
       } : null,
       whereBase: whereBase,
       whereBaseComPermissoes: whereBaseComPermissoes,
-      whereFinal: JSON.stringify(whereFinal),
+      whereFinal: whereFinal,
       totalAndamentosInicial: andamentos.length,
       idsAgendaSize: idsAgenda.size,
       idsAgendaSample: Array.from(idsAgenda).slice(0, 5),
-    })
+    }))
     
     // Buscar agendas que correspondem aos andamentos e aplicar filtros
     const agendas = await prisma.agendaBase.findMany({
@@ -117,11 +132,12 @@ export async function GET(request: NextRequest) {
       }
     })
     
-    console.log('[DEBUG retornos-executante]', {
+    console.log('[DEBUG retornos-executante] Resultado final:', {
       totalAndamentos: andamentos.length,
       totalAgendasFiltradas: agendas.length,
       idsAgendasFiltradas: Array.from(idsAgendasFiltradas).slice(0, 5), // Primeiros 5 para debug
       agrupadoSize: agrupado.size,
+      dadosFinal: Array.from(agrupado.entries()).slice(0, 3), // Primeiros 3 para debug
     })
 
     // Converter para array e ordenar
