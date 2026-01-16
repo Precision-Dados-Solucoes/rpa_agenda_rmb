@@ -1,0 +1,99 @@
+// Prisma Schema para Azure SQL Database
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id                    String    @id @default(uuid()) @db.UniqueIdentifier
+  email                 String    @unique @db.NVarChar(255)
+  senha                 String    @db.NVarChar(255)
+  nome                  String    @db.NVarChar(255)
+  role                  String    @default("usuario") @db.NVarChar(50)
+  ativo                 Boolean   @default(true) @db.Bit
+  senha_alterada        Boolean   @default(false) @map("senha_alterada") @db.Bit
+  paginas_autorizadas   String?   @db.NVarChar(Max) @map("paginas_autorizadas")
+  executantes_autorizados String? @db.NVarChar(Max) @map("executantes_autorizados")
+  reset_token           String?   @db.NVarChar(500) @map("reset_token")
+  reset_token_expires   DateTime? @db.DateTime2 @map("reset_token_expires")
+  created_at            DateTime  @default(now()) @db.DateTime2
+  updated_at            DateTime  @default(now()) @updatedAt @db.DateTime2
+
+  sessoes       Sessao[]
+  logsAcessos   LogsAcessos[]
+
+  @@map("Usuarios")
+}
+
+model Sessao {
+  id           String    @id @default(uuid()) @db.UniqueIdentifier
+  usuario_id   String    @db.UniqueIdentifier
+  token        String    @unique @db.NVarChar(500)
+  refresh_token String?  @db.NVarChar(500)
+  expires_at   DateTime  @db.DateTime2
+  ip_address   String?   @db.NVarChar(45)
+  user_agent   String?   @db.NVarChar(500)
+  created_at   DateTime  @default(now()) @db.DateTime2
+
+  usuario      Usuario   @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@map("Sessoes")
+}
+
+model LogsAcessos {
+  id          String    @id @default(uuid()) @db.UniqueIdentifier
+  usuario_id  String?   @db.UniqueIdentifier
+  acao        String    @db.NVarChar(100)
+  endpoint    String?   @db.NVarChar(500)
+  metodo      String?   @db.NVarChar(10)
+  ip_address  String?   @db.NVarChar(45)
+  user_agent  String?   @db.NVarChar(500)
+  detalhes    String?   @db.NVarChar(Max)
+  status_code Int?
+  created_at  DateTime  @default(now()) @db.DateTime2
+
+  usuario     Usuario?  @relation(fields: [usuario_id], references: [id], onDelete: SetNull)
+
+  @@map("LogsAcessos")
+}
+
+model AgendaBase {
+  id_legalone              BigInt    @id @db.BigInt
+  compromisso_tarefa       String?   @db.NVarChar(Max)
+  tipo                     String?   @db.NVarChar(Max)
+  subtipo                  String?   @db.NVarChar(Max)
+  etiqueta                 String?   @db.NVarChar(Max)
+  inicio_data              DateTime? @db.Date
+  inicio_hora              DateTime? @db.Time
+  conclusao_prevista_data  DateTime? @db.Date
+  conclusao_prevista_hora  DateTime? @db.Time
+  conclusao_efetiva_data  DateTime? @db.Date
+  prazo_fatal_data         DateTime? @db.Date
+  pasta_proc               String?   @db.NVarChar(Max)
+  numero_cnj               String?   @db.NVarChar(Max)
+  executante               String?   @db.NVarChar(Max)
+  executante_sim           String?   @db.NVarChar(Max)
+  descricao                String?   @db.NVarChar(Max)
+  status                   String?   @db.NVarChar(Max)
+  link                     String?   @db.NVarChar(Max)
+  cadastro                 DateTime? @db.Date
+  created_at               DateTime? @default(now()) @db.DateTime2
+  cliente_processo         String?   @db.Text @map("cliente-processo")
+
+  @@map("agenda_base")
+}
+
+model AndamentoBase {
+  id_andamento_legalone    BigInt    @id @db.BigInt
+  id_agenda_legalone       BigInt    @db.BigInt
+  tipo_andamento           String?   @db.NVarChar(Max)
+  subtipo_andamento        String?   @db.NVarChar(Max)
+  descricao_andamento      String?   @db.NVarChar(Max)
+  cadastro_andamento       DateTime? @db.Date
+
+  @@map("andamento_base")
+}

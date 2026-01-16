@@ -1,0 +1,21 @@
+===========================================
+CONFIGURAR ARQUIVO .env.local
+===========================================
+
+Crie um arquivo chamado .env.local na raiz do projeto (analise-portal/)
+
+Conteudo do arquivo:
+
+DATABASE_URL="sqlserver://bi-advromas.database.windows.net:1433;database=dbAdvromas;user=rpaautomacoes;password=Jeremias2018@;encrypt=true;trustServerCertificate=false"
+
+JWT_SECRET="sua-chave-secreta-jwt-mude-isso-em-producao-123456789"
+
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="sua-chave-secreta-nextauth-mude-isso-987654321"
+
+===========================================
+IMPORTANTE:
+- Substitua a senha do DATABASE_URL se necessario
+- Gere chaves secretas aleatorias para JWT_SECRET e NEXTAUTH_SECRET
+- Nao commite o arquivo .env.local no git (ja esta no .gitignore)
+===========================================
