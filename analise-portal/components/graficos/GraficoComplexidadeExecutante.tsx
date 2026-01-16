@@ -103,7 +103,12 @@ export default function GraficoComplexidadeExecutante({ filtros }: GraficoComple
         params.append('prazoFatalTo', filtros.prazoFatalTo)
       }
 
-      const response = await fetch(`/api/indicadores/complexidade-executante?${params.toString()}`)
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/indicadores/complexidade-executante?${params.toString()}`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       if (response.ok) {
         const result = await response.json()
         setDados(result.dados)

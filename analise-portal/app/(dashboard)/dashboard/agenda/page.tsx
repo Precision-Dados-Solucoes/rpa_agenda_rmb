@@ -100,7 +100,12 @@ export default function DashboardAgendaPage() {
       params.append('page', pagina.toString())
       params.append('limit', paginacao.limit.toString())
 
-      const response = await fetch(`/api/agenda/dados?${params.toString()}`)
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/agenda/dados?${params.toString()}`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       if (response.ok) {
         const result = await response.json()
         setDados(result.dados)

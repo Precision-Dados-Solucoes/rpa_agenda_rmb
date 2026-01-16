@@ -107,7 +107,12 @@ export default function GraficoAndamentosExecutante({ filtros }: GraficoAndament
         params.append('prazoFatalTo', filtros.prazoFatalTo)
       }
 
-      const response = await fetch(`/api/indicadores/andamentos-executante?${params.toString()}`)
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/indicadores/andamentos-executante?${params.toString()}`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       if (response.ok) {
         const result = await response.json()
         setDados(result.dados)
@@ -172,7 +177,12 @@ export default function GraficoAndamentosExecutante({ filtros }: GraficoAndament
         params.append('prazoFatalTo', filtros.prazoFatalTo)
       }
 
-      const response = await fetch(`/api/indicadores/andamentos-detalhes?${params.toString()}`)
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/indicadores/andamentos-detalhes?${params.toString()}`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       if (response.ok) {
         const result = await response.json()
         setDetalhes(result.dados)

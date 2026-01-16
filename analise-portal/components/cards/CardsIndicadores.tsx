@@ -89,7 +89,12 @@ export default function CardsIndicadores({ filtros }: CardsIndicadoresProps) {
         params.append('prazoFatalTo', filtros.prazoFatalTo)
       }
 
-      const response = await fetch(`/api/indicadores?${params.toString()}`)
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/indicadores?${params.toString()}`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       if (response.ok) {
         const data = await response.json()
         setIndicadores(data)

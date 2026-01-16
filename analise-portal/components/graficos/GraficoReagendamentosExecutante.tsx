@@ -97,7 +97,12 @@ export default function GraficoReagendamentosExecutante({ filtros }: GraficoReag
         params.append('prazoFatalTo', filtros.prazoFatalTo)
       }
 
-      const response = await fetch(`/api/indicadores/reagendamentos-executante?${params.toString()}`)
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/indicadores/reagendamentos-executante?${params.toString()}`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       if (response.ok) {
         const result = await response.json()
         setDados(result.dados)

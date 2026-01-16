@@ -86,8 +86,9 @@ export function construirWherePermissoes(
   permissoes: PermissoesUsuario | null,
   whereBase: any = {}
 ): any {
+  // Se não houver permissões (sem token), permitir acesso total (compatibilidade)
   if (!permissoes) {
-    return { id_legalone: -1 } // Retornar vazio se não houver permissões
+    return whereBase
   }
 
   // Administradores veem tudo

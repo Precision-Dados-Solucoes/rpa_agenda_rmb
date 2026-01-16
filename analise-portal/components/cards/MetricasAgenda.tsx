@@ -83,7 +83,12 @@ export default function MetricasAgenda({ filtros }: MetricasAgendaProps) {
         params.append('conclusaoEfetivaTo', filtros.conclusaoEfetivaTo)
       }
 
-      const response = await fetch(`/api/agenda/metricas?${params.toString()}`)
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/agenda/metricas?${params.toString()}`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       if (response.ok) {
         const result = await response.json()
         setMetricas(result)
