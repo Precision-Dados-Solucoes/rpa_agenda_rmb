@@ -12,6 +12,7 @@ interface GraficoComplexidadeProps {
 interface DadoGrafico {
   complexidade: string
   quantidade: number
+  [key: string]: string | number
 }
 
 export default function GraficoComplexidade({ filtros }: GraficoComplexidadeProps) {
