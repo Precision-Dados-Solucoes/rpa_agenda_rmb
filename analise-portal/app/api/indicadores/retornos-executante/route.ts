@@ -71,7 +71,10 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Criar mapa de id_agenda -> executante
+    // Criar conjunto de IDs de agendas que passaram no filtro de permissões
+    const idsAgendasFiltradas = new Set(agendas.map((a) => a.id_legalone.toString()))
+    
+    // Criar mapa de id_agenda -> executante apenas para agendas filtradas
     const mapaAgendaExecutante = new Map<string, string>()
     agendas.forEach((agenda) => {
       const id = agenda.id_legalone.toString()
@@ -80,14 +83,25 @@ export async function GET(request: NextRequest) {
     })
 
     // Agrupar andamentos por executante
+    // IMPORTANTE: Filtrar apenas andamentos cujas agendas passaram no filtro de permissões
     const agrupado = new Map<string, number>()
 
     andamentos.forEach((andamento) => {
       const idAgenda = andamento.id_agenda_legalone.toString()
-      const executante = mapaAgendaExecutante.get(idAgenda)
-      if (executante) {
-        agrupado.set(executante, (agrupado.get(executante) || 0) + 1)
+      // Só processar se a agenda estiver no conjunto de agendas filtradas
+      if (idsAgendasFiltradas.has(idAgenda)) {
+        const executante = mapaAgendaExecutante.get(idAgenda)
+        if (executante) {
+          agrupado.set(executante, (agrupado.get(executante) || 0) + 1)
+        }
       }
+    })
+    
+    console.log('[DEBUG retornos-executante]', {
+      totalAndamentos: andamentos.length,
+      totalAgendasFiltradas: agendas.length,
+      idsAgendasFiltradas: Array.from(idsAgendasFiltradas).slice(0, 5), // Primeiros 5 para debug
+      agrupadoSize: agrupado.size,
     })
 
     // Converter para array e ordenar
