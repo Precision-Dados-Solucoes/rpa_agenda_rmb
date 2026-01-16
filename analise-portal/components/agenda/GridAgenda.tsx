@@ -13,15 +13,20 @@ interface ItemAgenda {
   subtipo: string | null
   etiqueta: string | null
   inicio_data: Date | string | null
+  inicio_hora: Date | string | null
   conclusao_prevista_data: Date | string | null
+  conclusao_prevista_hora: Date | string | null
   conclusao_efetiva_data: Date | string | null
   prazo_fatal_data: Date | string | null
   pasta_proc: string | null
   numero_cnj: string | null
   executante: string | null
+  executante_sim: string | null
   descricao: string | null
   status: string | null
   link: string | null
+  cadastro: Date | string | null
+  cliente_processo: string | null
   quantidadeAndamentos: number
 }
 
