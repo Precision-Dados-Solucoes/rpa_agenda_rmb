@@ -86,13 +86,23 @@ export function construirWherePermissoes(
   permissoes: PermissoesUsuario | null,
   whereBase: any = {}
 ): any {
+  console.log('[DEBUG construirWherePermissoes] Iniciando:', {
+    temPermissoes: !!permissoes,
+    role: permissoes?.role,
+    executantes_count: permissoes?.executantes_autorizados?.length || 0,
+    executantes: permissoes?.executantes_autorizados,
+    whereBase_executante: whereBase.executante,
+  })
+
   // Se não houver permissões (sem token), permitir acesso total (compatibilidade)
   if (!permissoes) {
+    console.log('[DEBUG construirWherePermissoes] Sem permissões, retornando whereBase sem filtro')
     return whereBase
   }
 
   // Administradores veem tudo
   if (permissoes.role === 'administrador') {
+    console.log('[DEBUG construirWherePermissoes] Administrador, retornando whereBase sem filtro')
     return whereBase
   }
 
@@ -101,6 +111,7 @@ export function construirWherePermissoes(
     !permissoes.executantes_autorizados ||
     permissoes.executantes_autorizados.length === 0
   ) {
+    console.log('[DEBUG construirWherePermissoes] Array vazio de executantes, retornando whereBase sem filtro')
     return whereBase
   }
 
@@ -110,18 +121,27 @@ export function construirWherePermissoes(
     // Se o executante filtrado não está na lista de autorizados, retornar vazio
     if (typeof whereBase.executante === 'string') {
       if (!permissoes.executantes_autorizados.includes(whereBase.executante)) {
+        console.log('[DEBUG construirWherePermissoes] Executante filtrado não autorizado, retornando vazio')
         return { id_legalone: -1 } // Retornar vazio se o executante filtrado não está autorizado
       }
       // Se está autorizado, manter o filtro específico
+      console.log('[DEBUG construirWherePermissoes] Executante filtrado autorizado, mantendo filtro específico')
       return whereBase
     }
   }
   
   // Se não houver filtro específico, aplicar filtro de lista de autorizados
-  return {
+  const whereComFiltro = {
     ...whereBase,
     executante: {
       in: permissoes.executantes_autorizados,
     },
   }
+  
+  console.log('[DEBUG construirWherePermissoes] Aplicando filtro de executantes autorizados:', {
+    executantes_in: permissoes.executantes_autorizados,
+    where_final: JSON.stringify(whereComFiltro),
+  })
+  
+  return whereComFiltro
 }

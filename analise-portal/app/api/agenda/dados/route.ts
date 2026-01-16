@@ -101,13 +101,22 @@ export async function GET(request: NextRequest) {
 
     // Obter permissões do usuário para aplicar filtro de executantes
     const permissoes = await obterPermissoesUsuario(request)
+    console.log('[DEBUG agenda/dados] Permissões obtidas:', permissoes ? {
+      role: permissoes.role,
+      executantes_count: permissoes.executantes_autorizados?.length || 0,
+      executantes: permissoes.executantes_autorizados,
+    } : 'null')
     
     // Detectar categoria do semáforo e construir where usando helpers
     const categoriaSemaforo = detectarCategoriaSemaforo(prazoFatalFrom, prazoFatalTo)
     let whereQuery = construirWhereSemaforo(where, categoriaSemaforo)
     
+    console.log('[DEBUG agenda/dados] Where antes do filtro de permissões:', JSON.stringify(whereQuery))
+    
     // Aplicar filtro de executantes autorizados (se não for administrador)
     whereQuery = construirWherePermissoes(permissoes, whereQuery)
+    
+    console.log('[DEBUG agenda/dados] Where após filtro de permissões:', JSON.stringify(whereQuery))
     
     // Se não for categoria do semáforo, aplicar filtro normal de data
     if (!categoriaSemaforo && (prazoFatalFrom || prazoFatalTo)) {

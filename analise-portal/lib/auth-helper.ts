@@ -10,6 +10,7 @@ export async function obterPermissoesUsuario(request: NextRequest): Promise<Perm
   try {
     const authHeader = request.headers.get('authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('[DEBUG permissoes] Sem token de autenticação')
       return null
     }
 
@@ -17,8 +18,11 @@ export async function obterPermissoesUsuario(request: NextRequest): Promise<Perm
     const decoded = verifyToken(token)
 
     if (!decoded) {
+      console.log('[DEBUG permissoes] Token inválido ou expirado')
       return null
     }
+
+    console.log('[DEBUG permissoes] Token decodificado:', { id: decoded.id, email: decoded.email, role: decoded.role })
 
     // Buscar usuário com permissões
     const usuario = await prisma.usuario.findUnique({
@@ -31,10 +35,11 @@ export async function obterPermissoesUsuario(request: NextRequest): Promise<Perm
     })
 
     if (!usuario) {
+      console.log('[DEBUG permissoes] Usuário não encontrado no banco')
       return null
     }
 
-    return {
+    const permissoes = {
       role: usuario.role || 'usuario',
       paginas_autorizadas: usuario.paginas_autorizadas
         ? JSON.parse(usuario.paginas_autorizadas)
@@ -43,8 +48,17 @@ export async function obterPermissoesUsuario(request: NextRequest): Promise<Perm
         ? JSON.parse(usuario.executantes_autorizados)
         : [],
     }
+
+    console.log('[DEBUG permissoes] Permissões obtidas:', {
+      role: permissoes.role,
+      paginas_count: permissoes.paginas_autorizadas.length,
+      executantes_count: permissoes.executantes_autorizados.length,
+      executantes: permissoes.executantes_autorizados,
+    })
+
+    return permissoes
   } catch (error) {
-    console.error('Erro ao obter permissões do usuário:', error)
+    console.error('[DEBUG permissoes] Erro ao obter permissões do usuário:', error)
     return null
   }
 }
