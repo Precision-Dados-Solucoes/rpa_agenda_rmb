@@ -79,11 +79,22 @@ export default function DebugPermissoesPage() {
     )
   }
 
+  const userStr = localStorage.getItem('user')
+  const user = userStr ? JSON.parse(userStr) : null
+  const isAdmin = user?.role === 'administrador'
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">🔍 Diagnóstico de Permissões</h1>
+          <div>
+            <h1 className="text-3xl font-bold">🔍 Diagnóstico de Permissões</h1>
+            {!isAdmin && (
+              <p className="text-sm text-orange-600 mt-1">
+                ⚠️ Você está visualizando como usuário comum. Verifique se suas limitações estão sendo aplicadas corretamente.
+              </p>
+            )}
+          </div>
           <Button onClick={() => router.push('/home')} variant="outline">
             ← Voltar
           </Button>

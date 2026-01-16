@@ -147,8 +147,8 @@ export default function HomePage() {
             </Card>
           )}
 
-          {/* Debug - Apenas para desenvolvimento (remover em produção) */}
-          {user?.role === 'administrador' && (
+          {/* Debug - Disponível para todos os usuários logados para diagnóstico */}
+          {user && (
             <Card className="hover:shadow-xl transition-all duration-300 cursor-pointer border-2 hover:border-orange-500 group h-full flex flex-col">
               <CardContent className="p-8 flex flex-col flex-1">
                 <div
@@ -161,6 +161,11 @@ export default function HomePage() {
                   <h3 className="text-xl font-bold text-slate-800 mt-4">Debug Permissões</h3>
                   <p className="text-gray-600 text-sm mt-2 flex-1">
                     Diagnóstico de permissões e controle de acesso
+                    {user.role !== 'administrador' && (
+                      <span className="block mt-1 text-xs text-orange-600">
+                        (Verifique suas limitações)
+                      </span>
+                    )}
                   </p>
                   <Button className="w-full mt-4" variant="default">
                     Acessar
