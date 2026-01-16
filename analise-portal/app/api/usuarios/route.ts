@@ -185,14 +185,18 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Enviar email de boas-vindas (usando a senha original ANTES de criptografar)
+    // Enviar email de boas-vindas (DESABILITADO TEMPORARIAMENTE)
+    // TODO: Reativar após resolver configuração SMTP/Office 365
     // Não bloquear a criação do usuário se o email falhar
+    /*
     try {
       await enviarEmailBoasVindas(email, nome, senha)
     } catch (emailError) {
       console.error('Erro ao enviar email de boas-vindas (usuário criado mesmo assim):', emailError)
       // Continuar mesmo se o email falhar - o usuário já foi criado
     }
+    */
+    console.log(`📧 Email de boas-vindas desabilitado temporariamente. Usuário criado: ${nome} (${email}) - Senha: ${senha}`)
 
     return NextResponse.json({ usuario: novoUsuario }, { status: 201 })
   } catch (error) {
