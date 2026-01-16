@@ -106,12 +106,14 @@ export function construirWherePermissoes(
     return whereBase
   }
 
-  // Array vazio significa acesso a todos
+  // IMPORTANTE: Array vazio ou NULL = SEM RESTRIÇÃO (acesso a todos)
+  // Se você quer restringir, o array DEVE conter pelo menos um executante
+  // Se o array estiver vazio, significa que o usuário tem acesso a todos os executantes
   if (
     !permissoes.executantes_autorizados ||
     permissoes.executantes_autorizados.length === 0
   ) {
-    console.log('[DEBUG construirWherePermissoes] Array vazio de executantes, retornando whereBase sem filtro')
+    console.log('[DEBUG construirWherePermissoes] Array vazio de executantes = acesso a TODOS (sem filtro)')
     return whereBase
   }
 

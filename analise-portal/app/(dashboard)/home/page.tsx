@@ -146,6 +146,29 @@ export default function HomePage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Debug - Apenas para desenvolvimento (remover em produção) */}
+          {user?.role === 'administrador' && (
+            <Card className="hover:shadow-xl transition-all duration-300 cursor-pointer border-2 hover:border-orange-500 group h-full flex flex-col">
+              <CardContent className="p-8 flex flex-col flex-1">
+                <div
+                  onClick={() => router.push('/dashboard/debug-permissoes')}
+                  className="flex flex-col items-center text-center h-full"
+                >
+                  <div className="bg-orange-100 p-6 rounded-full group-hover:bg-orange-200 transition-colors">
+                    <span className="text-4xl">🔍</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-800 mt-4">Debug Permissões</h3>
+                  <p className="text-gray-600 text-sm mt-2 flex-1">
+                    Diagnóstico de permissões e controle de acesso
+                  </p>
+                  <Button className="w-full mt-4" variant="default">
+                    Acessar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

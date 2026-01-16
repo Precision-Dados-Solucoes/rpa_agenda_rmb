@@ -101,13 +101,26 @@ export async function GET(request: NextRequest) {
 
     // Buscar todos os registros
     // Nota: whereQuery já contém o filtro de executantes autorizados
+    // O Prisma não permite executante: { in: [...], not: null } ao mesmo tempo
+    // Então vamos filtrar nulls depois, ou garantir que o filtro "in" já exclui nulls
+    const whereFinal: any = { ...whereQuery }
+    
+    // Se não houver filtro de executante aplicado, adicionar "not: null"
+    // Se já houver filtro "in", o Prisma já vai filtrar apenas os valores na lista
+    if (!whereQuery.executante) {
+      whereFinal.executante = { not: null }
+    } else if (whereQuery.executante && typeof whereQuery.executante === 'object' && whereQuery.executante.in) {
+      // Se tem filtro "in", manter apenas esse (os valores na lista já não incluem null)
+      whereFinal.executante = whereQuery.executante
+    } else if (typeof whereQuery.executante === 'string') {
+      // Se é string específica, manter
+      whereFinal.executante = whereQuery.executante
+    }
+    
+    console.log('[DEBUG grafico-executante] Where final antes da query:', JSON.stringify(whereFinal))
+    
     const registros = await prisma.agendaBase.findMany({
-      where: {
-        ...whereQuery,
-        executante: {
-          not: null,
-        },
-      },
+      where: whereFinal,
       select: {
         id_legalone: true,
         executante: true,

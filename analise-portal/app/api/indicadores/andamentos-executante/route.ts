@@ -25,14 +25,14 @@ export async function GET(request: NextRequest) {
     const whereConditions: string[] = ['a.executante IS NOT NULL']
     
     // Adicionar filtro de executantes autorizados se aplicável
-    if (whereBaseComPermissoes.executante && Array.isArray(whereBaseComPermissoes.executante.in)) {
+    // Verificar se há filtro de permissões primeiro
+    if (whereBaseComPermissoes.executante && typeof whereBaseComPermissoes.executante === 'object' && Array.isArray(whereBaseComPermissoes.executante.in)) {
       const executantes = whereBaseComPermissoes.executante.in.map((e: string) => `N'${e.replace(/'/g, "''")}'`).join(', ')
       whereConditions.push(`a.executante IN (${executantes})`)
-    } else if (whereBaseComPermissoes.executante) {
+    } else if (whereBaseComPermissoes.executante && typeof whereBaseComPermissoes.executante === 'string') {
       whereConditions.push(`a.executante = N'${String(whereBaseComPermissoes.executante).replace(/'/g, "''")}'`)
-    }
-
-    if (whereBase.executante) {
+    } else if (whereBase.executante && whereBase.executante !== 'Todos') {
+      // Só adicionar filtro de executante do whereBase se não houver filtro de permissões
       whereConditions.push(`a.executante = N'${whereBase.executante.replace(/'/g, "''")}'`)
     }
     if (whereBase.status) {
