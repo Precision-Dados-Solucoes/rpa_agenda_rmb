@@ -60,7 +60,19 @@ export async function GET(request: NextRequest) {
       whereFinal.executante = whereBaseComPermissoes.executante
     }
     
-    console.log('[DEBUG reagendamentos-executante] Where final:', JSON.stringify(whereFinal))
+    console.log('[DEBUG reagendamentos-executante]', {
+      permissoes: permissoes ? {
+        role: permissoes.role,
+        executantes_count: permissoes.executantes_autorizados?.length || 0,
+        executantes: permissoes.executantes_autorizados,
+      } : null,
+      whereBase: whereBase,
+      whereBaseComPermissoes: whereBaseComPermissoes,
+      whereFinal: JSON.stringify(whereFinal),
+      totalAndamentosInicial: andamentos.length,
+      idsAgendaSize: idsAgenda.size,
+      idsAgendaSample: Array.from(idsAgenda).slice(0, 5),
+    })
     
     // Buscar agendas que correspondem aos andamentos e aplicar filtros
     const agendas = await prisma.agendaBase.findMany({
@@ -69,6 +81,14 @@ export async function GET(request: NextRequest) {
         id_legalone: true,
         executante: true,
       },
+    })
+
+    console.log('[DEBUG reagendamentos-executante] Após buscar agendas:', {
+      totalAgendasEncontradas: agendas.length,
+      agendasSample: agendas.slice(0, 3).map(a => ({
+        id: a.id_legalone.toString(),
+        executante: a.executante,
+      })),
     })
 
     // Criar conjunto de IDs de agendas que passaram no filtro de permissões
