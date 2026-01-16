@@ -23,6 +23,17 @@ export async function verifyCredentials(email: string, senha: string) {
 
     const usuario = await prisma.usuario.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        nome: true,
+        role: true,
+        senha: true,
+        ativo: true,
+        senha_alterada: true,
+        paginas_autorizadas: true,
+        executantes_autorizados: true,
+      },
     })
 
     if (!usuario || !usuario.ativo) {
@@ -41,6 +52,12 @@ export async function verifyCredentials(email: string, senha: string) {
       nome: usuario.nome,
       role: usuario.role,
       senha_alterada: usuario.senha_alterada ?? false,
+      paginas_autorizadas: usuario.paginas_autorizadas
+        ? JSON.parse(usuario.paginas_autorizadas)
+        : [],
+      executantes_autorizados: usuario.executantes_autorizados
+        ? JSON.parse(usuario.executantes_autorizados)
+        : [],
     }
   } catch (error) {
     console.error('Erro em verifyCredentials:', error)

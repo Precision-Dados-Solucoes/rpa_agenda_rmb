@@ -68,6 +68,8 @@ export async function POST(request: NextRequest) {
         email: usuario.email,
         nome: usuario.nome,
         role: usuario.role,
+        paginas_autorizadas: usuario.paginas_autorizadas || [],
+        executantes_autorizados: usuario.executantes_autorizados || [],
       },
       primeiroAcesso: !usuario.senha_alterada,
     })
