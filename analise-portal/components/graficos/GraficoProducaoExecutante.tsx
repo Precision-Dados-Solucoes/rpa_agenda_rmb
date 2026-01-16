@@ -100,7 +100,12 @@ export default function GraficoProducaoExecutante({ filtros }: GraficoProducaoEx
         params.append('prazoFatalTo', filtros.prazoFatalTo)
       }
 
-      const response = await fetch(`/api/indicadores/producao-executante?${params.toString()}`)
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/indicadores/producao-executante?${params.toString()}`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       if (response.ok) {
         const result = await response.json()
         setDados(result.dados)
