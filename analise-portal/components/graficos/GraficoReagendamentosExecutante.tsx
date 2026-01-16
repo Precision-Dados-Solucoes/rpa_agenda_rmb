@@ -155,7 +155,7 @@ export default function GraficoReagendamentosExecutante({ filtros }: GraficoReag
                 interval={0}
               />
               <Tooltip
-                formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Quantidade']}
+                formatter={(value) => [typeof value === 'number' ? value.toLocaleString('pt-BR'), 'Quantidade']}
                 contentStyle={{
                   backgroundColor: '#fff',
                   border: '1px solid #e5e7eb',
@@ -167,7 +167,7 @@ export default function GraficoReagendamentosExecutante({ filtros }: GraficoReag
                   dataKey="quantidade"
                   position="right"
                   offset={10}
-                  formatter={(value: number) => value.toLocaleString('pt-BR')}
+                  formatter={(value) => typeof value === 'number' ? value.toLocaleString('pt-BR')}
                   style={{ fill: '#374151', fontSize: '12px', fontWeight: 600 }}
                 />
               </Bar>

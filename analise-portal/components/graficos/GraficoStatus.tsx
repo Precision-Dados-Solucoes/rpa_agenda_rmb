@@ -124,7 +124,7 @@ export default function GraficoStatus({ filtros }: GraficoStatusProps) {
               }}
             />
             <Tooltip
-              formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Quantidade']}
+              formatter={(value) => [typeof value === 'number' ? value.toLocaleString('pt-BR'), 'Quantidade']}
               contentStyle={{
                 backgroundColor: '#fff',
                 border: '1px solid #e5e7eb',
@@ -138,7 +138,7 @@ export default function GraficoStatus({ filtros }: GraficoStatusProps) {
               <LabelList
                 dataKey="quantidade"
                 position="right"
-                formatter={(value: number) => value.toLocaleString('pt-BR')}
+                formatter={(value) => typeof value === 'number' ? value.toLocaleString('pt-BR')}
                 style={{ fontSize: '12px', fill: '#374151', fontWeight: 500 }}
               />
             </Bar>
