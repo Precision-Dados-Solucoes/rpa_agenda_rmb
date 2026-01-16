@@ -9,8 +9,9 @@ import { verifyToken } from '@/lib/auth'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params
   try {
     // Verificar autenticação
     const authHeader = request.headers.get('authorization')
@@ -85,8 +86,9 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params
   try {
     // Verificar autenticação
     const authHeader = request.headers.get('authorization')
