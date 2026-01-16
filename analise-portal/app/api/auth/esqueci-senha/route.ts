@@ -48,7 +48,8 @@ export async function POST(request: NextRequest) {
     })
 
     // Criar link de reset
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    // Usar HTTPS em produção, HTTP apenas em desenvolvimento local
+    const baseUrl = process.env.NEXTAUTH_URL || (process.env.NODE_ENV === 'production' ? 'https://advromas.precisionsolucoes.com' : 'http://localhost:3000')
     const resetUrl = `${baseUrl}/redefinir-senha?token=${resetToken}`
 
     // Configurar transporter de email
