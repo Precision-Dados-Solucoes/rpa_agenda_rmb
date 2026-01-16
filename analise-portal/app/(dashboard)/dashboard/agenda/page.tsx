@@ -333,7 +333,6 @@ export default function DashboardAgendaPage() {
                 <GridAgenda
                   dados={dados}
                   carregando={carregandoDados}
-                  onItemClick={setItemDetalhes}
                   paginacao={paginacao}
                   onPageChange={(page) => setPaginacao((prev) => ({ ...prev, page }))}
                 />
