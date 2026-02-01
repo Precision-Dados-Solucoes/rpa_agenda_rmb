@@ -6,16 +6,7 @@ import asyncpg
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import psycopg2
-
-# Importação opcional do azure_sql_helper (pode falhar no Linux se drivers ODBC não estiverem instalados)
-try:
-    from azure_sql_helper import upsert_agenda_base
-    AZURE_SQL_AVAILABLE = True
-except ImportError as e:
-    print(f"[AVISO] azure_sql_helper nao disponivel: {e}")
-    print("[AVISO] Funcionalidade de Azure SQL Database desabilitada")
-    AZURE_SQL_AVAILABLE = False
-    upsert_agenda_base = None
+from azure_sql_helper import upsert_agenda_base as upsert_agenda_base_azure
 
 # --- INSTALAÇÃO DE BIBLIOTECAS (rode estes comandos no seu terminal se ainda não o fez): ---
 # pip install pandas
@@ -131,7 +122,18 @@ async def process_excel_file(file_path):
             'executante': 'executante',
             'executante_sim': 'executante_sim',
             'descricao': 'descricao',
-            'status': 'status'
+            'status': 'status',
+            'cliente-processo': 'cliente-processo',
+            'contrario-processo': 'contrario-processo'
+        }
+        
+        # Colunas que podem vir com nomes variados no Excel (tentar variações)
+        column_variations = {
+            'cliente-processo': ['cliente-processo', 'Cliente-processo', 'Cliente-Processo', 
+                                'CLIENTE-PROCESSO', 'cliente_processo', 'Cliente_processo', 
+                                'Cliente_Processo', 'CLIENTE_PROCESSO'],
+            'contrario-processo': ['contrario-processo', 'Contrário-processo', 'Contrário-Processo',
+                                  'contrario_processo', 'Contrário', 'contrario', 'contrario processo'],
         }
         
         # Copiar colunas diretas
@@ -139,6 +141,18 @@ async def process_excel_file(file_path):
             if excel_col in df.columns:
                 df_processed[supabase_col] = df[excel_col]
                 print(f"✅ Coluna '{excel_col}' → '{supabase_col}'")
+            elif supabase_col in column_variations:
+                possible_names = column_variations[supabase_col]
+                found = False
+                for name in possible_names:
+                    if name in df.columns:
+                        df_processed[supabase_col] = df[name]
+                        print(f"✅ Coluna '{name}' → '{supabase_col}'")
+                        found = True
+                        break
+                if not found:
+                    print(f"⚠️ Coluna '{excel_col}' não encontrada no arquivo (tentou variações)")
+                    df_processed[supabase_col] = None
             else:
                 print(f"⚠️ Coluna '{excel_col}' não encontrada no arquivo")
                 df_processed[supabase_col] = None
@@ -196,7 +210,7 @@ async def process_excel_file(file_path):
             df_processed['id_legalone'] = pd.to_numeric(df_processed['id_legalone'], errors='coerce').astype('Int64')
         
         # Converter campos numéricos para string (text no Supabase)
-        text_columns = ['pasta_proc', 'numero_cnj', 'executante', 'executante_sim', 'descricao', 'link', 'status']
+        text_columns = ['pasta_proc', 'numero_cnj', 'executante', 'executante_sim', 'descricao', 'link', 'status', 'cliente-processo', 'contrario-processo']
         for col in text_columns:
             if col in df_processed.columns:
                 df_processed[col] = df_processed[col].astype(str)
@@ -361,7 +375,8 @@ def insert_data_to_supabase_psycopg2(df, table_name):
                 
                 for col in columns_df:
                     if col != 'id_legalone':  # Não incluir id_legalone no SET
-                        set_clauses.append(f"{col} = %s")
+                        # Aspas duplas para colunas com hífen (ex: contrario-processo)
+                        set_clauses.append(f'"{col}" = %s')
                         values.append(None if pd.isna(row[col]) else row[col])
                 
                 values.append(id_legalone)  # Adicionar id_legalone para WHERE
@@ -481,7 +496,7 @@ async def insert_data_to_supabase_connection_string(df, table_name):
                     
                     for col in columns_df:
                         if col != 'id_legalone':  # Não incluir id_legalone no SET
-                            set_clauses.append(f"{col} = ${len(values) + 1}")
+                            set_clauses.append(f'"{col}" = ${len(values) + 1}')
                             values.append(None if pd.isna(row[col]) else row[col])
                     
                     values.append(id_legalone)  # Adicionar id_legalone para WHERE
@@ -759,7 +774,7 @@ async def insert_data_to_supabase(df, table_name):
                     
                     for col in columns_df:
                         if col != 'id_legalone':  # Não incluir id_legalone no SET
-                            set_clauses.append(f"{col} = ${len(values) + 1}")
+                            set_clauses.append(f'"{col}" = ${len(values) + 1}')
                             values.append(None if pd.isna(row[col]) else row[col])
                     
                     values.append(id_legalone)  # Adicionar id_legalone para WHERE
@@ -942,8 +957,7 @@ async def run():
         print("Selecionando a licença usando current-value...")
         try:
             # Valor específico da licença (robertomatos - cleiton.sanches)
-            # ATUALIZADO: current-value mudou para 321230142ac9f01183ce12fc83a1b95d
-            license_specific_value = "321230142ac9f01183ce12fc83a1b95d"
+            license_specific_value = "64ee2867d98cf01183cb12fc83a1b95d"
             
             # Seletor para o saf-radio com o current-value específico
             license_selector = f'saf-radio[current-value="{license_specific_value}"] >> input[part="control"]'
@@ -1175,6 +1189,20 @@ async def run():
                 if success:
                     print("✅ Dados inseridos no Supabase com sucesso!")
                     
+                    # Atualizar também no Azure SQL Database
+                    print("\n" + "="*70)
+                    print("🔄 ATUALIZANDO DADOS NO AZURE SQL DATABASE")
+                    print("="*70)
+                    try:
+                        azure_success = upsert_agenda_base_azure(df_processed, "agenda_base", "id_legalone")
+                        if azure_success:
+                            print("✅ Dados atualizados no Azure SQL Database com sucesso!")
+                        else:
+                            print("⚠️ Falha ao atualizar dados no Azure SQL Database (continuando mesmo assim)")
+                    except Exception as e:
+                        print(f"⚠️ Erro ao atualizar Azure SQL Database: {e}")
+                        print("⚠️ Continuando mesmo assim...")
+                    
                     # Limpar arquivo baixado após processamento bem-sucedido
                     try:
                         if os.path.exists(file_path):
@@ -1303,21 +1331,6 @@ async def test_supabase_insertion():
             print("Processamento e inserção no Supabase concluídos!")
         else:
             print("Falha no processamento e inserção no Supabase.")
-        
-        # 3. Inserir/atualizar também no Azure SQL Database (se disponível)
-        if AZURE_SQL_AVAILABLE and upsert_agenda_base:
-            print("\n[AZURE] Inserindo/atualizando dados no Azure SQL Database...")
-            try:
-                azure_success = upsert_agenda_base(df_report, "agenda_base")
-                if azure_success:
-                    print("✅ Dados inseridos/atualizados no Azure SQL Database com sucesso!")
-                else:
-                    print("❌ Falha ao inserir/atualizar dados no Azure SQL Database.")
-            except Exception as e:
-                print(f"❌ Erro ao inserir no Azure SQL Database: {e}")
-        else:
-            print("\n[AVISO] Azure SQL Database nao disponivel (drivers ODBC nao instalados ou modulo nao disponivel)")
-            print("[INFO] Dados foram salvos apenas no Supabase")
     elif df_report is not None and df_report.empty:
         print("O arquivo de teste está vazio, nada para inserir no Supabase.")
     else:
