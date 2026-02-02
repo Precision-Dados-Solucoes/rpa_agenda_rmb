@@ -15,6 +15,7 @@ import asyncpg
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import psycopg2
+from hostinger_mysql_helper import upsert_agenda_base as upsert_agenda_base_hostinger
 
 # Carrega as variáveis de ambiente do arquivo config.env
 load_dotenv('config.env')
@@ -1039,7 +1040,7 @@ async def run():
         await close_any_known_popup(page)
 
         # --- ETAPA 6: NAVEGAR PARA O RELATÓRIO ---
-        report_url = "https://robertomatos.novajus.com.br/agenda/GenericReport/?id=673"
+        report_url = "https://robertomatos.novajus.com.br/agenda/GenericReport/?id=677"
         print(f"Navegando para o relatório: {report_url}...")
         try:
             await page.goto(report_url, wait_until="domcontentloaded", timeout=60000)
@@ -1204,6 +1205,20 @@ async def run():
                 if success:
                     print("✅ Dados atualizados no Supabase com sucesso!")
                     
+                    # Atualizar também no MySQL Hostinger (datas tratadas no helper)
+                    print("\n" + "="*70)
+                    print("🔄 ATUALIZANDO DADOS NO MYSQL HOSTINGER")
+                    print("="*70)
+                    try:
+                        hostinger_success = upsert_agenda_base_hostinger(df_processed, "agenda_base", "id_legalone")
+                        if hostinger_success:
+                            print("✅ Dados atualizados no MySQL Hostinger com sucesso!")
+                        else:
+                            print("⚠️ Falha ao atualizar dados no MySQL Hostinger (continuando mesmo assim)")
+                    except Exception as e:
+                        print(f"⚠️ Erro ao atualizar MySQL Hostinger: {e}")
+                        print("⚠️ Continuando mesmo assim...")
+                    
                     # Limpar arquivo baixado após processamento bem-sucedido
                     try:
                         if os.path.exists(file_path):
@@ -1265,6 +1280,10 @@ async def run():
         
         await browser.close()
         return
+
+        # --- CÓDIGO REMOVIDO TEMPORARIAMENTE PARA INSPEÇÃO ---
+        # Todo o código após o login foi removido para permitir inspeção
+        # Será restaurado após identificar as alterações necessárias
 
 # --- NOVA FUNÇÃO PARA TESTAR APENAS A INSERÇÃO NO SUPABASE ---
 async def test_supabase_insertion():

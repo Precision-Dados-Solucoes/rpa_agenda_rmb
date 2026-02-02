@@ -11,16 +11,7 @@ import pandas as pd
 import asyncpg
 from dotenv import load_dotenv
 from datetime import datetime
-
-# Importação opcional do azure_sql_helper (pode falhar no Linux se drivers ODBC não estiverem instalados)
-try:
-    from azure_sql_helper import upsert_andamento_base
-    AZURE_SQL_AVAILABLE = True
-except ImportError as e:
-    print(f"[AVISO] azure_sql_helper nao disponivel: {e}")
-    print("[AVISO] Funcionalidade de Azure SQL Database desabilitada")
-    AZURE_SQL_AVAILABLE = False
-    upsert_andamento_base = None
+from hostinger_mysql_helper import upsert_andamento_base as upsert_andamento_base_hostinger
 
 # Carrega as variáveis de ambiente
 load_dotenv('config.env')
@@ -471,8 +462,7 @@ async def run():
         # --- SELEÇÃO DA LICENÇA CORRETA USANDO CURRENT-VALUE ---
         print("Selecionando a licença usando current-value...")
         try:
-            # ATUALIZADO: current-value mudou para 321230142ac9f01183ce12fc83a1b95d
-            license_specific_value = "321230142ac9f01183ce12fc83a1b95d"
+            license_specific_value = "64ee2867d98cf01183cb12fc83a1b95d"
             license_selector = f'saf-radio[current-value="{license_specific_value}"] >> input[part="control"]'
             
             print(f"Valor da licença: {license_specific_value}")
@@ -693,20 +683,19 @@ async def run():
                     if success:
                         print("Dados inseridos/atualizados no Supabase com sucesso!")
                         
-                        # Inserir/atualizar também no Azure SQL Database (se disponível)
-                        if AZURE_SQL_AVAILABLE and upsert_andamento_base:
-                            print("\n[AZURE] Inserindo/atualizando dados no Azure SQL Database...")
-                            try:
-                                azure_success = upsert_andamento_base(df_processed, "andamento_base")
-                                if azure_success:
-                                    print("✅ Dados inseridos/atualizados no Azure SQL Database com sucesso!")
-                                else:
-                                    print("❌ Falha ao inserir/atualizar dados no Azure SQL Database.")
-                            except Exception as e:
-                                print(f"❌ Erro ao inserir no Azure SQL Database: {e}")
-                        else:
-                            print("\n[AVISO] Azure SQL Database nao disponivel (drivers ODBC nao instalados ou modulo nao disponivel)")
-                            print("[INFO] Dados foram salvos apenas no Supabase")
+                        # Atualizar também no MySQL Hostinger (cadastro_andamento tratado no helper)
+                        print("\n" + "="*70)
+                        print("ATUALIZANDO DADOS NO MYSQL HOSTINGER")
+                        print("="*70)
+                        try:
+                            hostinger_success = upsert_andamento_base_hostinger(df_processed, "andamento_base", "id_andamento_legalone")
+                            if hostinger_success:
+                                print("Dados atualizados no MySQL Hostinger com sucesso!")
+                            else:
+                                print("Falha ao atualizar dados no MySQL Hostinger (continuando mesmo assim)")
+                        except Exception as e:
+                            print(f"Erro ao atualizar MySQL Hostinger: {e}")
+                            print("Continuando mesmo assim...")
                         
                         # Limpar arquivo baixado após processamento bem-sucedido
                         try:

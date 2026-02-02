@@ -6,7 +6,7 @@ import asyncpg
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import psycopg2
-from azure_sql_helper import upsert_agenda_base as upsert_agenda_base_azure
+from hostinger_mysql_helper import upsert_agenda_base as upsert_agenda_base_hostinger
 
 # --- INSTALAÇÃO DE BIBLIOTECAS (rode estes comandos no seu terminal se ainda não o fez): ---
 # pip install pandas
@@ -1189,18 +1189,18 @@ async def run():
                 if success:
                     print("✅ Dados inseridos no Supabase com sucesso!")
                     
-                    # Atualizar também no Azure SQL Database
+                    # Atualizar também no MySQL Hostinger (datas tratadas no helper)
                     print("\n" + "="*70)
-                    print("🔄 ATUALIZANDO DADOS NO AZURE SQL DATABASE")
+                    print("🔄 ATUALIZANDO DADOS NO MYSQL HOSTINGER")
                     print("="*70)
                     try:
-                        azure_success = upsert_agenda_base_azure(df_processed, "agenda_base", "id_legalone")
-                        if azure_success:
-                            print("✅ Dados atualizados no Azure SQL Database com sucesso!")
+                        hostinger_success = upsert_agenda_base_hostinger(df_processed, "agenda_base", "id_legalone")
+                        if hostinger_success:
+                            print("✅ Dados atualizados no MySQL Hostinger com sucesso!")
                         else:
-                            print("⚠️ Falha ao atualizar dados no Azure SQL Database (continuando mesmo assim)")
+                            print("⚠️ Falha ao atualizar dados no MySQL Hostinger (continuando mesmo assim)")
                     except Exception as e:
-                        print(f"⚠️ Erro ao atualizar Azure SQL Database: {e}")
+                        print(f"⚠️ Erro ao atualizar MySQL Hostinger: {e}")
                         print("⚠️ Continuando mesmo assim...")
                     
                     # Limpar arquivo baixado após processamento bem-sucedido
