@@ -259,6 +259,70 @@ def upsert_andamento_base(df, table_name="andamento_base", primary_key="id_andam
         return False
 
 
+def update_agenda_ultimo_andamento(df_andamentos):
+    """
+    Atualiza na tabela agenda_base as colunas do último andamento por agenda.
+    Chave: id_agenda_legalone (andamento) = id_legalone (agenda_base).
+    Para cada id_agenda_legalone considera o último andamento (maior cadastro_andamento)
+    e atualiza em agenda_base:
+      cadastro_andamento -> data_ultimo_andamento (DATETIME)
+      subtipo_andamento   -> tipo_ultimo_andamento (TEXT)
+      descricao_andamento -> conteudo_ultimo_andamento (TEXT)
+    """
+    required = ["id_agenda_legalone", "cadastro_andamento", "subtipo_andamento", "descricao_andamento"]
+    if not all(c in df_andamentos.columns for c in required):
+        print("[HOSTINGER] [ERRO] update_agenda_ultimo_andamento: DataFrame precisa das colunas:", required)
+        return False
+    # Último andamento por id_agenda_legalone (maior cadastro_andamento)
+    df = df_andamentos.sort_values("cadastro_andamento", ascending=False, na_position="last")
+    df = df.drop_duplicates(subset=["id_agenda_legalone"], keep="first")
+    conn = None
+    try:
+        conn = get_hostinger_connection()
+        if not conn:
+            return False
+        cursor = conn.cursor()
+        updated = 0
+        for _, row in df.iterrows():
+            id_agenda = row.get("id_agenda_legalone")
+            if id_agenda is None or pd.isna(id_agenda):
+                continue
+            # data_ultimo_andamento: DATETIME (cadastro_andamento pode ser date -> 00:00:00)
+            v_cadastro = row.get("cadastro_andamento")
+            if v_cadastro is not None and not pd.isna(v_cadastro):
+                data_ultimo = _valor_para_mysql(v_cadastro, "cadastro_andamento")
+                if data_ultimo and len(data_ultimo) == 10:
+                    data_ultimo = data_ultimo + " 00:00:00"
+            else:
+                data_ultimo = None
+            # tipo_ultimo_andamento: TEXT
+            v_subtipo = row.get("subtipo_andamento")
+            tipo_ultimo = None if (v_subtipo is None or pd.isna(v_subtipo)) else str(v_subtipo).strip() or None
+            # conteudo_ultimo_andamento: TEXT
+            v_desc = row.get("descricao_andamento")
+            conteudo_ultimo = None if (v_desc is None or pd.isna(v_desc)) else str(v_desc).strip() or None
+            cursor.execute(
+                """
+                UPDATE agenda_base
+                SET data_ultimo_andamento = %s, tipo_ultimo_andamento = %s, conteudo_ultimo_andamento = %s
+                WHERE id_legalone = %s
+                """,
+                (data_ultimo, tipo_ultimo, conteudo_ultimo, id_agenda),
+            )
+            updated += cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"[HOSTINGER] [OK] agenda_base: {updated} registros atualizados (data/tipo/conteudo último andamento)")
+        return True
+    except Exception as e:
+        print(f"[HOSTINGER] [ERRO] update_agenda_ultimo_andamento: {e}")
+        if conn:
+            conn.rollback()
+            conn.close()
+        return False
+
+
 # URL base para link de processos (usado em insert_processos_base)
 LINK_PROCESSOS_BASE = "https://robertomatos.novajus.com.br/processos/processos/details/"
 LINK_PROCESSOS_PARAMS = "?hasNavigation=True&currentPage=1&returnUrl=%2Fprocessos%2Fprocessos%2Fsearch%3Fajaxnavigation%3Dtrue"

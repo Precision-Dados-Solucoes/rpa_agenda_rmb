@@ -857,8 +857,8 @@ async def run():
         page = await context.new_page()
 
         # --- CREDENCIAIS DE LOGIN NO SISTEMA NOVAJUS ---
-        USERNAME = os.getenv("NOVAJUS_USERNAME", "cleiton.sanches@precisionsolucoes.com")
-        PASSWORD = os.getenv("NOVAJUS_PASSWORD", "PDS2025@")
+        USERNAME = os.getenv("NOVAJUS_USERNAME", "rpa.icscore@ics-core.com")
+        PASSWORD = os.getenv("NOVAJUS_PASSWORD", "Pds2025@@")
 
         # --- ETAPA 1: NAVEGAR PARA A PÁGINA DE LOGIN ---
         novajus_login_url = "https://login.novajus.com.br/conta/login" 
@@ -961,74 +961,7 @@ async def run():
 
         await close_any_known_popup(page)
 
-        # --- ETAPA 4: SELEÇÃO DA NOVA LICENÇA ---
-        print("Aguardando página de seleção de licença carregar...")
-        await page.wait_for_timeout(3000)
-        
-        # Tira screenshot da página de seleção de licença
-        await page.screenshot(path="debug_license_selection_page.png", full_page=True)
-        print("📸 Screenshot da página de seleção de licença salvo: debug_license_selection_page.png")
-
-        # --- SELEÇÃO DA LICENÇA CORRETA USANDO CURRENT-VALUE ---
-        print("Selecionando a licença usando current-value...")
-        try:
-            # Valor específico da licença (robertomatos - cleiton.sanches)
-            license_specific_value = "64ee2867d98cf01183cb12fc83a1b95d"
-            
-            # Seletor para o saf-radio com o current-value específico
-            license_selector = f'saf-radio[current-value="{license_specific_value}"] >> input[part="control"]'
-            
-            print(f"🎯 Valor da licença: {license_specific_value}")
-            print(f"🎯 Seletor: {license_selector}")
-            print("Aguardando e clicando na licença específica...")
-            
-            # Aguarda o elemento estar visível
-            await page.wait_for_selector(license_selector, state='visible', timeout=30000)
-            
-            # Clica na licença específica
-            await page.click(license_selector)
-            print("✅ Licença 'robertomatos - cleiton.sanches' selecionada com sucesso!")
-
-        except TimeoutError:
-            print(f"❌ Erro: Licença com current-value '{license_specific_value}' não encontrada.")
-            await page.screenshot(path="debug_license_current_value_not_found.png", full_page=True)
-            print("📸 Screenshot de erro salvo: debug_license_current_value_not_found.png")
-            print("🔍 Verifique se a licença está visível na página.")
-            await browser.close()
-            return
-        except Exception as e:
-            print(f"❌ Erro inesperado ao selecionar a licença: {e}")
-            await page.screenshot(path="debug_license_current_value_error.png", full_page=True)
-            print("📸 Screenshot de erro salvo: debug_license_current_value_error.png")
-            await browser.close()
-            return
-
-        await close_any_known_popup(page)
-
-        # Clicar no botão 'Continuar' após selecionar a licença
-        print("Clicando no botão 'Continuar' após selecionar a licença...")
-        try:
-            continue_button_selector = 'saf-button.PersonaSelectionPage-button[type="submit"]' 
-            await page.wait_for_selector(continue_button_selector, state='visible', timeout=30000)
-            await page.click(continue_button_selector)
-            print("✅ Botão 'Continuar' clicado com sucesso!")
-
-        except TimeoutError:
-            print(f"❌ Erro: Botão 'Continuar' não encontrado.")
-            await page.screenshot(path="debug_continue_button_not_found.png", full_page=True)
-            print("📸 Screenshot de erro salvo: debug_continue_button_not_found.png")
-            await browser.close()
-            return
-        except Exception as e:
-            print(f"❌ Erro inesperado ao clicar no botão continuar: {e}")
-            await page.screenshot(path="debug_continue_button_error.png", full_page=True)
-            print("📸 Screenshot de erro salvo: debug_continue_button_error.png")
-            await browser.close()
-            return
-
-        await close_any_known_popup(page)
-
-        # --- ETAPA 5: ESPERA DA PÁGINA PÓS-LOGIN COMPLETO ---
+        # --- ETAPA 4: AGUARDAR HOME (conta rpa.icscore@ics-core.com vai direto para a home, sem tela de licença) ---
         print("Aguardando a página inicial do sistema carregar...")
         await page.wait_for_load_state("networkidle", timeout=60000)
         await page.wait_for_timeout(3000)
@@ -1249,7 +1182,7 @@ async def run():
         print("🎯 SCRIPT PARADO APÓS DOWNLOAD DO RELATÓRIO")
         print("="*70)
         print("✅ Processo completo realizado com sucesso!")
-        print("🔍 Login, seleção de licença, geração e download do relatório")
+        print("🔍 Login (sem seleção de licença), geração e download do relatório")
         print(f"📍 URL atual: {page.url}")
         if file_path:
             print(f"📁 Arquivo baixado: {file_path}")
@@ -1257,7 +1190,6 @@ async def run():
         print("   - debug_initial_page.png")
         print("   - debug_after_username_fill.png") 
         print("   - debug_after_final_login_click.png")
-        print("   - debug_license_selection_page.png")
         print("   - debug_post_login_page.png")
         print("   - debug_report_page_loaded.png")
         print("   - debug_before_generate_click.png")
