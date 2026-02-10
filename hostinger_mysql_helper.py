@@ -266,10 +266,10 @@ def update_agenda_ultimo_andamento(df_andamentos):
     Para cada id_agenda_legalone considera o último andamento (maior cadastro_andamento)
     e atualiza em agenda_base:
       cadastro_andamento -> data_ultimo_andamento (DATETIME)
-      subtipo_andamento   -> tipo_ultimo_andamento (TEXT)
+      tipo_andamento      -> tipo_ultimo_andamento (TEXT)
       descricao_andamento -> conteudo_ultimo_andamento (TEXT)
     """
-    required = ["id_agenda_legalone", "cadastro_andamento", "subtipo_andamento", "descricao_andamento"]
+    required = ["id_agenda_legalone", "cadastro_andamento", "tipo_andamento", "descricao_andamento"]
     if not all(c in df_andamentos.columns for c in required):
         print("[HOSTINGER] [ERRO] update_agenda_ultimo_andamento: DataFrame precisa das colunas:", required)
         return False
@@ -295,9 +295,9 @@ def update_agenda_ultimo_andamento(df_andamentos):
                     data_ultimo = data_ultimo + " 00:00:00"
             else:
                 data_ultimo = None
-            # tipo_ultimo_andamento: TEXT
-            v_subtipo = row.get("subtipo_andamento")
-            tipo_ultimo = None if (v_subtipo is None or pd.isna(v_subtipo)) else str(v_subtipo).strip() or None
+            # tipo_ultimo_andamento: TEXT (relatório: tipo_andamento)
+            v_tipo = row.get("tipo_andamento")
+            tipo_ultimo = None if (v_tipo is None or pd.isna(v_tipo)) else str(v_tipo).strip() or None
             # conteudo_ultimo_andamento: TEXT
             v_desc = row.get("descricao_andamento")
             conteudo_ultimo = None if (v_desc is None or pd.isna(v_desc)) else str(v_desc).strip() or None
