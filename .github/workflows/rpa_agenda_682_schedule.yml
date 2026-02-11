@@ -1,10 +1,17 @@
-name: RPA Agenda 682 - Agendamento a cada hora
+name: RPA Agenda 682 - Agendamento
 
 on:
   schedule:
-    # Executa a cada hora (minuto 0), horário UTC = BRT+3
-    # Ex.: 13:00 UTC = 10:00 BRT, 14:00 UTC = 11:00 BRT, ..., 0:00 UTC = 21:00 BRT
-    - cron: '0 * * * *'
+    # Executa nos horários 08, 10, 12, 14, 15, 16, 17 e 19 BRT (minuto 0)
+    # Cron em UTC: BRT + 3
+    - cron: '0 11 * * *'   # 08:00 BRT
+    - cron: '0 13 * * *'   # 10:00 BRT
+    - cron: '0 15 * * *'   # 12:00 BRT
+    - cron: '0 17 * * *'   # 14:00 BRT
+    - cron: '0 18 * * *'   # 15:00 BRT
+    - cron: '0 19 * * *'   # 16:00 BRT
+    - cron: '0 20 * * *'   # 17:00 BRT
+    - cron: '0 22 * * *'   # 19:00 BRT
   
   workflow_dispatch:
     inputs:

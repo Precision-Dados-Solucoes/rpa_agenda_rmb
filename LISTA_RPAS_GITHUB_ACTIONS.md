@@ -7,7 +7,7 @@ Arquivos de workflow em `.github/workflows/` (apenas os ativos, sem " - Copia").
 
 | Workflow | Horário de execução | Ação / Script executado |
 |----------|---------------------|-------------------------|
-| **RPA Agenda 682** (`rpa_agenda_682_schedule.yml`) | **A cada hora** (00:00 a 23:00 BRT) | Baixa relatório id=682, UPSERT em agenda_base (apenas MySQL Hostinger). **Script:** `python rpa_agenda_682_rmb.py` |
+| **RPA Agenda 682** (`rpa_agenda_682_schedule.yml`) | 08:00, 10:00, 12:00, 14:00, 15:00, 16:00, 17:00 e 19:00 BRT | Baixa relatório id=682, UPSERT em agenda_base (apenas MySQL Hostinger). **Script:** `python rpa_agenda_682_rmb.py` |
 | **RPA Agenda** (`rpa_agenda_schedule.yml`) | 11:10, 14:10 e 16:10 (todos os dias) | Baixa relatório de agenda (id=671), processa e atualiza Supabase + MySQL Hostinger. **Script:** `python rpa_agenda_rmb.py` |
 | **RPA Andamentos** (`rpa_andamentos_schedule.yml`) | 12:10 e 17:10 (segunda a sexta) | Baixa relatório de andamentos, processa e atualiza Supabase + MySQL Hostinger; atualiza último andamento em agenda_base. **Script:** `python rpa_andamentos_completo.py` |
 | **RPA Atualização de Agenda 677** (`rpa_atualiza_agenda_677_schedule.yml`) | 12:10, 16:10 e 18:10 (todos os dias) | Baixa relatório 677, atualiza agenda_base. **Script:** `python rpa_atualiza_agenda_677_rmb.py` |
@@ -26,22 +26,28 @@ Arquivos de workflow em `.github/workflows/` (apenas os ativos, sem " - Copia").
 
 | Horário | Workflows |
 |---------|-----------|
-| **A cada hora** | RPA Agenda 682 (00:00 a 23:00 BRT) |
-| **08:00** | RPA Prazos Fatais do Dia |
+| **08:00** | RPA Agenda 682, RPA Prazos Fatais do Dia |
 | **08:30** | RPA Relatório Diário, Análise de Agenda Diária |
+| **10:00** | RPA Agenda 682 |
 | **11:10** | RPA Agenda |
+| **12:00** | RPA Agenda 682 |
 | **12:10** | RPA Atualização Agenda 677, RPA Andamentos (seg–sex) |
 | **12:15** | RPA Atualização de Concluídos (seg–sex) |
 | **13:10** | RPA Atualização de Cumpridos com Parecer (seg–sex) |
+| **14:00** | RPA Agenda 682 |
 | **14:10** | RPA Agenda |
 | **14:15** | RPA Atualização de Concluídos (seg–sex) |
+| **15:00** | RPA Agenda 682 |
 | **15:15** | RPA Atualização de Concluídos (seg–sex) |
+| **16:00** | RPA Agenda 682 |
 | **16:10** | RPA Agenda, RPA Atualização Agenda 677 |
 | **16:15** | RPA Atualização de Cumpridos com Parecer (seg–sex) |
 | **16:45** | RPA Atualização de Concluídos (seg–sex) |
+| **17:00** | RPA Agenda 682 |
 | **17:10** | RPA Andamentos (seg–sex) |
 | **17:15** | RPA Relatório Diário, RPA Relatório Agenda sem Interação (seg–sex) |
 | **18:10** | RPA Atualização Agenda 677 |
+| **19:00** | RPA Agenda 682 |
 | **19:10** | RPA Processos Novos |
 | **19:30** | RPA Processos Encerrados |
 
@@ -49,7 +55,7 @@ Arquivos de workflow em `.github/workflows/` (apenas os ativos, sem " - Copia").
 
 ## Observações
 
-- **RPA Agenda 682** roda a cada hora (cron `0 * * * *` em UTC). Os demais workflows que antes rodavam no minuto :00 foram deslocados em 10 minutos para não conflitar (ex.: RPA Agenda 11:00 → 11:10 BRT).
+- **RPA Agenda 682** roda às 08, 10, 12, 14, 15, 16, 17 e 19 BRT (8 execuções por dia).
 - **Resumo de execução:** os RPAs que fazem UPSERT em agenda_base (Agenda 671, Agenda 682, Atualização 677, Concluídos, Cumpridos com Parecer) exibem no log a linha `RESUMO: N itens processados (inseridos: X, atualizados: Y, pulados: Z)`.
 - **RPA Publicações:** o arquivo `rpa_publicacoes_schedule.yml` está vazio no repositório; se esse workflow for usado, é preciso definir o cron e o script no arquivo.
 - Todos os workflows podem ser disparados manualmente via **workflow_dispatch** (quando configurado).
