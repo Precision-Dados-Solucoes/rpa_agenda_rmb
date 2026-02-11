@@ -150,7 +150,7 @@ def upsert_agenda_base(df, table_name="agenda_base", primary_key="id_legalone"):
         cursor.close()
         conn.close()
         print(f"[HOSTINGER] [OK] {table_name}: Inseridos={inserted}, Atualizados={updated}, Pulados={skipped}")
-        return True
+        return (True, inserted, updated, skipped)
 
     except Exception as e:
         print(f"[HOSTINGER] [ERRO] UPSERT {table_name}: {e}")

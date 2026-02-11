@@ -2,12 +2,10 @@ name: RPA Andamentos - Agendamento Automático
 
 on:
   schedule:
-    # Executa às 12:00 e 17:00 (horário de São Paulo)
+    # Executa às 12:10 e 17:10 BRT (10 min após para não conflitar com RPA Agenda 682)
     # Cron: minuto hora dia mês dia_da_semana
-    # 0 15 * * 1-5 = 15:00 UTC (12:00 BRT) - Segunda a Sexta
-    # 0 20 * * 1-5 = 20:00 UTC (17:00 BRT) - Segunda a Sexta
-    - cron: '0 15 * * 1-5'  # 12:00 BRT (15:00 UTC)
-    - cron: '0 20 * * 1-5'  # 17:00 BRT (20:00 UTC)
+    - cron: '10 15 * * 1-5'  # 12:10 BRT (15:10 UTC)
+    - cron: '10 20 * * 1-5'  # 17:10 BRT (20:10 UTC)
   
   # Permite execução manual
   workflow_dispatch:

@@ -1,0 +1,125 @@
+name: RPA Agenda 682 - Agendamento a cada hora
+
+on:
+  schedule:
+    # Executa a cada hora (minuto 0), horário UTC = BRT+3
+    # Ex.: 13:00 UTC = 10:00 BRT, 14:00 UTC = 11:00 BRT, ..., 0:00 UTC = 21:00 BRT
+    - cron: '0 * * * *'
+  
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Modo de teste (sem interface gráfica)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  TZ: America/Sao_Paulo
+  HEADLESS: true
+  CI: true
+  GITHUB_ACTIONS: true
+
+jobs:
+  rpa-agenda-682:
+    name: Executar RPA Agenda 682
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Configurar Timezone
+      run: |
+        sudo timedatectl set-timezone America/Sao_Paulo
+        echo "Timezone configurado: $(date)"
+
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Instalar dependências do sistema
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libnss3 \
+          libatk-bridge2.0-0 \
+          libdrm2 \
+          libxkbcommon0 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxrandr2 \
+          libgbm1 \
+          libxss1 \
+          libasound2t64 \
+          libatspi2.0-0 \
+          libgtk-3-0 \
+          libgdk-pixbuf2.0-0
+
+    - name: Instalar dependências Python
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install playwright
+        playwright install chromium
+        sudo apt-get install -y libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 \
+          libxcomposite1 libxdamage1 libxrandr2 libgbm1 libxss1 libasound2t64 \
+          libatspi2.0-0 libgtk-3-0 libgdk-pixbuf2.0-0
+
+    - name: Configurar variáveis de ambiente
+      run: |
+        echo "NOVAJUS_USERNAME=${{ secrets.NOVAJUS_USERNAME }}" >> $GITHUB_ENV
+        echo "NOVAJUS_PASSWORD=${{ secrets.NOVAJUS_PASSWORD }}" >> $GITHUB_ENV
+        echo "MYSQL_HOST=${{ secrets.MYSQL_HOST }}" >> $GITHUB_ENV
+        echo "MYSQL_PORT=${{ secrets.MYSQL_PORT }}" >> $GITHUB_ENV
+        echo "MYSQL_USER=${{ secrets.MYSQL_USER }}" >> $GITHUB_ENV
+        echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> $GITHUB_ENV
+        echo "MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}" >> $GITHUB_ENV
+
+    - name: Criar diretório de downloads
+      run: |
+        mkdir -p downloads
+        echo "Diretório de downloads criado"
+
+    - name: Executar RPA Agenda 682
+      run: |
+        echo "Iniciando RPA Agenda 682 (relatório id=682)..."
+        echo "Horário atual: $(date)"
+        echo "Modo headless: $HEADLESS"
+        echo "Destino: agenda_base no MySQL Hostinger (UPSERT)"
+        python rpa_agenda_682_rmb.py
+        echo "RPA Agenda 682 concluído!"
+
+    - name: Verificar arquivos baixados
+      run: |
+        echo "Verificando pasta downloads:"
+        ls -la downloads/ || echo "Pasta downloads vazia ou não encontrada"
+
+    - name: Upload de logs (se houver erro)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: rpa-agenda-682-logs-${{ github.run_number }}
+        path: |
+          downloads/
+          debug_*.png
+        retention-days: 7
+
+    - name: Notificar sucesso
+      if: success()
+      run: |
+        echo "RPA Agenda 682 executado com sucesso!"
+        echo "Data/Hora: $(date)"
+        echo "Resumo da execução: verifique a saída do step 'Executar RPA Agenda 682' acima"
+
+    - name: Notificar falha
+      if: failure()
+      run: |
+        echo "RPA Agenda 682 falhou!"
+        echo "Data/Hora: $(date)"
+        echo "Verifique os logs para mais detalhes"
