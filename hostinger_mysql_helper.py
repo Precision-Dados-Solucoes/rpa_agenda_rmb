@@ -323,6 +323,140 @@ def update_agenda_ultimo_andamento(df_andamentos):
         return False
 
 
+def update_agenda_metricas_operacionais(df_processed):
+    """
+    Atualiza incrementalmente as colunas de métricas operacionais na agenda_base,
+    usando SOMENTE andamentos ainda não processados (controle em agenda_metricas_processadas).
+    Para cada andamento: se já está na tabela de controle → pula; senão → atualiza métricas
+    e registra em agenda_metricas_processadas (anti-duplicidade).
+    Chave: id_agenda_legalone (andamento) = id_legalone (agenda_base).
+    Requer tabela: agenda_metricas_processadas (id_andamento_legalone, id_agenda_legalone).
+    """
+    required = ["id_agenda_legalone", "id_andamento_legalone", "tipo_andamento", "cadastro_andamento"]
+    if not all(c in df_processed.columns for c in required):
+        print("[HOSTINGER] [ERRO] update_agenda_metricas_operacionais: DataFrame precisa das colunas:", required)
+        return False
+    conn = None
+    try:
+        conn = get_hostinger_connection()
+        if not conn:
+            return False
+        cursor = conn.cursor()
+        processados = 0
+        for _, row in df_processed.iterrows():
+            agenda_id = row.get("id_agenda_legalone")
+            andamento_id = row.get("id_andamento_legalone")
+            v_tipo = row.get("tipo_andamento")
+            tipo = str(v_tipo).strip() if v_tipo is not None and pd.notna(v_tipo) else ""
+            data_andamento = row.get("cadastro_andamento")
+
+            if agenda_id is None or pd.isna(agenda_id) or andamento_id is None or pd.isna(andamento_id):
+                continue
+
+            # Verificar se andamento já foi processado
+            cursor.execute(
+                """
+                SELECT 1 FROM agenda_metricas_processadas
+                WHERE id_andamento_legalone = %s
+                """,
+                (andamento_id,),
+            )
+            if cursor.fetchone():
+                continue  # já contabilizado
+
+            data_andamento_mysql = None
+            if data_andamento is not None and not pd.isna(data_andamento):
+                data_andamento_mysql = _valor_para_mysql(data_andamento, "cadastro_andamento")
+                if data_andamento_mysql and len(data_andamento_mysql) == 10:
+                    data_andamento_mysql = data_andamento_mysql + " 00:00:00"
+
+            # -----------------------------
+            # ATUALIZAÇÕES OPERACIONAIS
+            # -----------------------------
+
+            if tipo.startswith("1"):
+                cursor.execute(
+                    """
+                    UPDATE agenda_base
+                    SET qtd_producoes = COALESCE(qtd_producoes, 0) + 1,
+                        data_ultima_producao = %s
+                    WHERE id_legalone = %s
+                    """,
+                    (data_andamento_mysql, agenda_id),
+                )
+                processados += 1
+            elif tipo.startswith("7"):
+                cursor.execute(
+                    """
+                    UPDATE agenda_base
+                    SET qtd_reproducoes = COALESCE(qtd_reproducoes, 0) + 1,
+                        data_ultima_producao = %s
+                    WHERE id_legalone = %s
+                    """,
+                    (data_andamento_mysql, agenda_id),
+                )
+                processados += 1
+            elif tipo.startswith("6"):
+                cursor.execute(
+                    """
+                    UPDATE agenda_base
+                    SET qtd_retornos = COALESCE(qtd_retornos, 0) + 1,
+                        teve_retorno = TRUE
+                    WHERE id_legalone = %s
+                    """,
+                    (agenda_id,),
+                )
+                processados += 1
+            elif tipo.startswith("5"):
+                cursor.execute(
+                    """
+                    UPDATE agenda_base
+                    SET qtd_reagendamentos = COALESCE(qtd_reagendamentos, 0) + 1,
+                        teve_reagendamento = TRUE
+                    WHERE id_legalone = %s
+                    """,
+                    (agenda_id,),
+                )
+                processados += 1
+
+            # Métricas derivadas (dias_execucao, foi_entregue_no_prazo)
+            cursor.execute(
+                """
+                UPDATE agenda_base
+                SET dias_execucao = DATEDIFF(data_ultima_producao, inicio_data),
+                    foi_entregue_no_prazo = CASE
+                        WHEN data_ultima_producao IS NULL THEN NULL
+                        WHEN DATE(data_ultima_producao) <= DATE(inicio_data) THEN TRUE
+                        ELSE FALSE
+                    END
+                WHERE id_legalone = %s
+                """,
+                (agenda_id,),
+            )
+
+            # Registrar como processado (controle anti-duplicidade)
+            cursor.execute(
+                """
+                INSERT INTO agenda_metricas_processadas
+                (id_andamento_legalone, id_agenda_legalone)
+                VALUES (%s, %s)
+                """,
+                (andamento_id, agenda_id),
+            )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("[HOSTINGER] [OK] Métricas operacionais atualizadas com controle anti-duplicidade.")
+        return True
+    except Exception as e:
+        print(f"[HOSTINGER] [ERRO] update_agenda_metricas_operacionais: {e}")
+        if conn:
+            conn.rollback()
+            conn.close()
+        return False
+
+
 # URL base para link de processos (usado em insert_processos_base)
 LINK_PROCESSOS_BASE = "https://robertomatos.novajus.com.br/processos/processos/details/"
 LINK_PROCESSOS_PARAMS = "?hasNavigation=True&currentPage=1&returnUrl=%2Fprocessos%2Fprocessos%2Fsearch%3Fajaxnavigation%3Dtrue"

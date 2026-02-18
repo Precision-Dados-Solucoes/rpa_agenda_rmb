@@ -62,3 +62,26 @@ CREATE TABLE IF NOT EXISTS processos_base (
 -- ALTER TABLE processos_base ADD COLUMN data_sentenca DATETIME NULL;
 -- ALTER TABLE processos_base ADD COLUMN data_encerramento_resultado_tipo_resultado DATETIME NULL;
 -- ALTER TABLE processos_base ADD COLUMN status VARCHAR(255) NULL;
+
+-- 4) publicacoes_raw (importado de publicacoes_hostinger.xlsx)
+CREATE TABLE IF NOT EXISTS publicacoes_raw (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    data_publicacao DATE NULL,
+    processo VARCHAR(255) NULL,
+    tratamento VARCHAR(255) NULL,
+    conteudo TEXT NULL,
+    conteudo_normalizado TEXT NULL,
+    tipo_publicacao VARCHAR(255) NULL,
+    servico_captura VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_processo (processo),
+    INDEX idx_data_publicacao (data_publicacao)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 5) agenda_metricas_processadas (controle anti-duplicidade para update_agenda_metricas_operacionais)
+CREATE TABLE IF NOT EXISTS agenda_metricas_processadas (
+    id_andamento_legalone BIGINT PRIMARY KEY COMMENT 'Andamento já contabilizado nas métricas da agenda',
+    id_agenda_legalone BIGINT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_id_agenda (id_agenda_legalone)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

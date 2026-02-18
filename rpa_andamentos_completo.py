@@ -14,6 +14,7 @@ from datetime import datetime
 from hostinger_mysql_helper import (
     upsert_andamento_base as upsert_andamento_base_hostinger,
     update_agenda_ultimo_andamento,
+    update_agenda_metricas_operacionais,
 )
 
 # Carrega as variáveis de ambiente
@@ -638,6 +639,9 @@ async def run():
                                 # Atualizar agenda_base com último andamento por id_agenda_legalone
                                 print("Atualizando agenda_base (data/tipo/conteudo último andamento)...")
                                 update_agenda_ultimo_andamento(df_processed)
+                                # Atualizar métricas operacionais (qtd_producoes, retornos, reagendamentos, etc.)
+                                print("Atualizando agenda_base (métricas operacionais)...")
+                                update_agenda_metricas_operacionais(df_processed)
                             else:
                                 print("Falha ao atualizar dados no MySQL Hostinger (continuando mesmo assim)")
                         except Exception as e:
