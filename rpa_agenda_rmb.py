@@ -4,8 +4,6 @@ import os
 import pandas as pd
 import asyncpg
 from dotenv import load_dotenv
-from supabase import create_client, Client
-import psycopg2
 from hostinger_mysql_helper import upsert_agenda_base as upsert_agenda_base_hostinger
 
 # --- INSTALAÇÃO DE BIBLIOTECAS (rode estes comandos no seu terminal se ainda não o fez): ---
@@ -16,12 +14,7 @@ from hostinger_mysql_helper import upsert_agenda_base as upsert_agenda_base_host
 # -----------------------------------------------------------------------------------------
 
 # Carrega as variáveis de ambiente do arquivo config.env
-# Certifique-se de ter um arquivo config.env no mesmo diretório do seu script com as credenciais:
-# SUPABASE_HOST=db.dhfmqumwizrwdbjnbcua.supabase.co
-# SUPABASE_PORT=5432
-# SUPABASE_DATABASE=postgres
-# SUPABASE_USER=postgres
-# SUPABASE_PASSWORD=PDS2025@@
+# config.env: NOVAJUS_USERNAME, NOVAJUS_PASSWORD, MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE
 load_dotenv('config.env')
 
 # Configuração automática do modo headless baseada no ambiente
@@ -34,38 +27,97 @@ print(f"A pasta de downloads será: {os.path.abspath(downloads_dir)}")
 
 async def close_any_known_popup(page):
     """
-    Tenta fechar popups modais ou overlays usando seletores comuns para botões de fechar.
-    Retorna True se um popup foi encontrado e tentado fechar, False caso contrário.
+    Tenta fechar popups/modais que travam o processo.
+    Usa múltiplos seletores, tecla Escape e clique no backdrop; repete até não encontrar mais popup.
     """
+    # Seletores de botões de fechar (ordem: mais comuns primeiro)
     close_selectors = [
-        '[aria-label="Close"]',          # Botão genérico de fechar (com label ARIA)
-        'button:has-text("Fechar")',     # Botão com texto "Fechar"
-        'button:has-text("OK")',         # Às vezes "OK" fechar um aviso
-        'button.close',                  # Classe comum para botões de fechar
-        '.modal-footer button:has-text("Fechar")', # Botão "Fechar" no rodapé de um modal
-        '.modal-header button.close',    # Botão "Fechar" no cabeçalho de um modal
-        '.popup-close',                  # Classe específica para fechar popups
-        '#close-button',                 # ID comum para um botão de fechar
-        '[role="dialog"] button:has-text("Fechar")' # Botão fechar dentro de um elemento com role="dialog"
+        '[aria-label="Close"]',
+        '[aria-label="Fechar"]',
+        'button:has-text("Fechar")',
+        'button:has-text("OK")',
+        'button:has-text("Entendi")',
+        'button:has-text("Continuar")',
+        'button:has-text("×")',
+        'button.close',
+        '.btn-close',
+        '[data-dismiss="modal"]',
+        '[data-bs-dismiss="modal"]',
+        '.modal-header button.close',
+        '.modal-header .btn-close',
+        '.modal-footer button:has-text("Fechar")',
+        '.modal-footer button:has-text("OK")',
+        '.popup-close',
+        '#close-button',
+        '[role="dialog"] button:has-text("Fechar")',
+        '.modal-dialog button.close',
+        'a.close',
+        '.fechar',
+        'button[title="Fechar"]',
+        '[title="Fechar"]',
+    ]
+    # Backdrop – clicar fora do modal às vezes fecha
+    backdrop_selectors = [
+        '.modal-backdrop',
+        '.modal-backdrop.show',
+        '[class*="overlay"]',
+        '.dialog-overlay',
     ]
 
-    print("Tentando fechar popups (se houver)...")
-    for selector in close_selectors:
+    closed_any = False
+    max_rounds = 5  # Várias rodadas para popups que aparecem após animação
+
+    for round_num in range(max_rounds):
+        found = False
+        # 1) Tecla Escape (fecha muitos modais)
         try:
-            element = page.locator(selector)
-            if await element.is_visible(timeout=1000):
-                print(f"  Popup detectado com seletor: {selector}. Tentando fechar...")
-                await element.click(timeout=3000)
-                print(f"  Popup fechado com sucesso usando seletor: {selector}.")
-                await page.wait_for_timeout(500)
-                return True
-        except TimeoutError:
+            await page.keyboard.press("Escape")
+            await page.wait_for_timeout(300)
+        except Exception:
             pass
-        except Exception as e:
-            print(f"  Erro inesperado ao tentar fechar popup com seletor {selector}: {e}")
-            pass
-    print("Nenhum popup conhecido encontrado ou fechado.")
-    return False
+
+        # 2) Botões de fechar
+        for selector in close_selectors:
+            try:
+                loc = page.locator(selector).first
+                if await loc.is_visible(timeout=800):
+                    print(f"  Popup: fechando com seletor '{selector}'...")
+                    await loc.click(timeout=3000)
+                    await page.wait_for_timeout(500)
+                    closed_any = True
+                    found = True
+                    break
+            except TimeoutError:
+                pass
+            except Exception as e:
+                print(f"  Erro ao clicar em '{selector}': {e}")
+        if found:
+            continue
+
+        # 3) Clique no backdrop (pode fechar o modal)
+        for selector in backdrop_selectors:
+            try:
+                loc = page.locator(selector).first
+                if await loc.is_visible(timeout=500):
+                    print(f"  Popup: clicando no backdrop '{selector}'...")
+                    await loc.click(timeout=2000)
+                    await page.wait_for_timeout(500)
+                    closed_any = True
+                    found = True
+                    break
+            except TimeoutError:
+                pass
+            except Exception:
+                pass
+        if not found:
+            break
+        await page.wait_for_timeout(400)
+
+    if closed_any:
+        print("  Popup(s) fechado(s).")
+    else:
+        print("  Nenhum popup conhecido encontrado ou fechado.")
+    return closed_any
 
 def read_excel_file(file_path):
     """
@@ -824,14 +876,10 @@ async def insert_data_to_supabase(df, table_name):
 
 async def run():
     async with async_playwright() as p:
-        # Configuração automática do modo headless
-        # Detecta se está em ambiente sem interface gráfica (GitHub Actions, etc.)
+        # Modo headless para execução via GitHub Actions; CI/GITHUB_ACTIONS força headless
         headless_mode = os.getenv("HEADLESS", "true").lower() == "true"
-        
-        # Se estiver em ambiente CI/CD (GitHub Actions), força headless
         if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
             headless_mode = True
-            
         print(f"Executando em modo {'headless' if headless_mode else 'com interface gráfica'}")
         browser = await p.chromium.launch(headless=headless_mode)
         
@@ -851,6 +899,8 @@ async def run():
         try:
             await page.goto(novajus_login_url, wait_until="domcontentloaded", timeout=60000) 
             print(f"DEBUG: URL atual após page.goto(): {page.url}")
+            await page.wait_for_timeout(1000)
+            await close_any_known_popup(page)
             await page.screenshot(path="debug_initial_page.png", full_page=True)
             print("DEBUG: Captura de tela 'debug_initial_page.png' tirada após page.goto().")
         except TimeoutError:
@@ -930,16 +980,12 @@ async def run():
             print("Erro FATAL: Campo de senha '#password' ou botão de login final não apareceu/clicável no tempo esperado OU a página após o login não carregou totalmente.")
             await page.screenshot(path="debug_password_field_or_final_button_missing.png", full_page=True)
             print("Navegador mantido aberto para inspeção. Verifique a URL e o conteúdo da página.")
-            if not headless_mode:
-                await asyncio.Event().wait()
             await browser.close()
             return
         except Exception as e:
             print(f"Erro inesperado ao preencher senha ou clicar no botão final: {e}")
             await page.screenshot(path="debug_password_fill_or_final_click_error.png", full_page=True)
             print("Navegador mantido aberto para inspeção. Verifique a URL e o conteúdo da página.")
-            if not headless_mode:
-                await asyncio.Event().wait()
             await browser.close()
             return
 
@@ -978,6 +1024,8 @@ async def run():
             await browser.close()
             return
 
+        await close_any_known_popup(page)
+        await page.wait_for_timeout(1500)
         await close_any_known_popup(page)
 
         # --- ETAPA 7: CLICAR NO BOTÃO GERAR ---
@@ -1095,74 +1143,49 @@ async def run():
             await browser.close()
             return
 
-        # --- ETAPA 9: PROCESSAR ARQUIVO E INSERIR NO SUPABASE ---
+        # --- ETAPA 9: PROCESSAR ARQUIVO E INSERIR NO MYSQL HOSTINGER ---
         print("\n" + "="*70)
-        print("🔄 PROCESSANDO ARQUIVO BAIXADO E INSERINDO NO SUPABASE")
+        print("🔄 PROCESSANDO ARQUIVO BAIXADO E INSERINDO NO MYSQL HOSTINGER")
         print("="*70)
         
         if file_path:
             print(f"📁 Arquivo baixado: {file_path}")
             
-            # Processar o arquivo Excel
             df_processed = await process_excel_file(file_path)
             
             if df_processed is not None and not df_processed.empty:
-                # Tentar inserir via psycopg2 primeiro (mais estável)
-                print("🔄 Tentando inserir dados via psycopg2...")
-                success = insert_data_to_supabase_psycopg2(df_processed, "agenda_base")
-                
-                if not success:
-                    print("⚠️ psycopg2 falhou, tentando connection string...")
-                    success = await insert_data_to_supabase_connection_string(df_processed, "agenda_base")
-                
-                if not success:
-                    print("⚠️ Connection string falhou, tentando conexão direta como fallback...")
-                    success = await insert_data_to_supabase(df_processed, "agenda_base")
+                print("🔄 Inserindo/atualizando dados no MySQL Hostinger...")
+                success = False
+                try:
+                    result = upsert_agenda_base_hostinger(df_processed, "agenda_base", "id_legalone")
+                    if result:
+                        success = True
+                        if isinstance(result, tuple) and len(result) == 4:
+                            _, inseridos, atualizados, pulados = result
+                            total = inseridos + atualizados
+                            print("")
+                            print("="*70)
+                            print(f"RESUMO: {total} itens processados (inseridos: {inseridos}, atualizados: {atualizados}, pulados: {pulados})")
+                            print("="*70)
+                        print("✅ Dados atualizados no MySQL Hostinger com sucesso!")
+                    else:
+                        print("⚠️ Falha ao atualizar dados no MySQL Hostinger.")
+                except Exception as e:
+                    print(f"❌ Erro ao atualizar MySQL Hostinger: {e}")
                 
                 if success:
-                    print("✅ Dados inseridos no Supabase com sucesso!")
-                    
-                    # Atualizar também no MySQL Hostinger (datas tratadas no helper)
-                    print("\n" + "="*70)
-                    print("🔄 ATUALIZANDO DADOS NO MYSQL HOSTINGER")
-                    print("="*70)
-                    try:
-                        result = upsert_agenda_base_hostinger(df_processed, "agenda_base", "id_legalone")
-                        if result:
-                            if isinstance(result, tuple) and len(result) == 4:
-                                _, inseridos, atualizados, pulados = result
-                                total = inseridos + atualizados
-                                print("")
-                                print("="*70)
-                                print(f"RESUMO: {total} itens processados (inseridos: {inseridos}, atualizados: {atualizados}, pulados: {pulados})")
-                                print("="*70)
-                            print("Dados atualizados no MySQL Hostinger com sucesso!")
-                        else:
-                            print("⚠️ Falha ao atualizar dados no MySQL Hostinger (continuando mesmo assim)")
-                    except Exception as e:
-                        print(f"⚠️ Erro ao atualizar MySQL Hostinger: {e}")
-                        print("⚠️ Continuando mesmo assim...")
-                    
-                    # Limpar arquivo baixado após processamento bem-sucedido
                     try:
                         if os.path.exists(file_path):
                             os.remove(file_path)
                             print(f"🗑️ Arquivo baixado removido: {file_path}")
-                        else:
-                            print(f"⚠️ Arquivo não encontrado para remoção: {file_path}")
                     except Exception as e:
                         print(f"⚠️ Erro ao remover arquivo {file_path}: {e}")
-                        
                 else:
-                    print("❌ Falha ao inserir dados no Supabase (todas as tentativas falharam).")
                     print("💾 Salvando dados localmente como backup...")
-                    
-                    # Salvar como backup local
                     backup_file = f"backup_agenda_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                     backup_path = os.path.join(downloads_dir, backup_file)
                     df_processed.to_excel(backup_path, index=False)
                     print(f"📁 Backup salvo em: {backup_path}")
-                    print("🔄 Dados processados com sucesso, mas não inseridos no Supabase.")
             else:
                 print("❌ Arquivo vazio ou erro no processamento.")
         else:
@@ -1192,15 +1215,7 @@ async def run():
         print("   1. Inspecione a página atual no navegador")
         print("   2. Verifique se o relatório foi baixado corretamente")
         print("   3. Me informe se há mais alguma alteração necessária")
-        print("\n⏸️  Pressione Ctrl+C para parar o script")
         print("="*70)
-        
-        # Manter o navegador aberto para inspeção (apenas em modo local)
-        if not headless_mode:
-            try:
-                await asyncio.Event().wait()
-            except KeyboardInterrupt:
-                print("\n🛑 Script interrompido pelo usuário")
         
         await browser.close()
         return

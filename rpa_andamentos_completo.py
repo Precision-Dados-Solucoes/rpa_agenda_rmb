@@ -603,68 +603,40 @@ async def run():
             await browser.close()
             return
 
-        # --- ETAPA 9: PROCESSAR ARQUIVO E INSERIR NO SUPABASE ---
+        # --- ETAPA 9: PROCESSAR ARQUIVO E INSERIR NO MYSQL HOSTINGER ---
         print("\n" + "="*70)
-        print("PROCESSANDO ARQUIVO BAIXADO E INSERINDO NO SUPABASE")
+        print("PROCESSANDO ARQUIVO BAIXADO E ATUALIZANDO NO MYSQL HOSTINGER")
         print("="*70)
         
         if file_path:
             print(f"Arquivo baixado: {file_path}")
             
-            # Processar o arquivo Excel
             df_processed = await process_excel_file(file_path)
             
             if df_processed is not None and not df_processed.empty:
-                # Conectar ao banco e fazer UPSERT
+                success = False
                 try:
-                    if not await connect_to_database():
-                        print("Erro ao conectar ao banco de dados")
-                        await browser.close()
-                        return
-                    
-                    # Processar com UPSERT
-                    success = await process_dataframe_with_upsert(df_processed, "andamento_base")
-                    
-                    if success:
-                        print("Dados inseridos/atualizados no Supabase com sucesso!")
-                        
-                        # Atualizar também no MySQL Hostinger (cadastro_andamento tratado no helper)
-                        print("\n" + "="*70)
-                        print("ATUALIZANDO DADOS NO MYSQL HOSTINGER")
-                        print("="*70)
-                        try:
-                            hostinger_success = upsert_andamento_base_hostinger(df_processed, "andamento_base", "id_andamento_legalone")
-                            if hostinger_success:
-                                print("Dados atualizados no MySQL Hostinger com sucesso!")
-                                # Atualizar agenda_base com último andamento por id_agenda_legalone
-                                print("Atualizando agenda_base (data/tipo/conteudo último andamento)...")
-                                update_agenda_ultimo_andamento(df_processed)
-                                # Atualizar métricas operacionais (qtd_producoes, retornos, reagendamentos, etc.)
-                                print("Atualizando agenda_base (métricas operacionais)...")
-                                update_agenda_metricas_operacionais(df_processed)
-                            else:
-                                print("Falha ao atualizar dados no MySQL Hostinger (continuando mesmo assim)")
-                        except Exception as e:
-                            print(f"Erro ao atualizar MySQL Hostinger: {e}")
-                            print("Continuando mesmo assim...")
-                        
-                        # Limpar arquivo baixado após processamento bem-sucedido
-                        try:
-                            if os.path.exists(file_path):
-                                os.remove(file_path)
-                                print(f"🗑️ Arquivo baixado removido: {file_path}")
-                            else:
-                                print(f"⚠️ Arquivo não encontrado para remoção: {file_path}")
-                        except Exception as e:
-                            print(f"⚠️ Erro ao remover arquivo {file_path}: {e}")
-                            
+                    print("Inserindo/atualizando andamento_base no MySQL Hostinger...")
+                    hostinger_success = upsert_andamento_base_hostinger(df_processed, "andamento_base", "id_andamento_legalone")
+                    if hostinger_success:
+                        success = True
+                        print("Dados atualizados no MySQL Hostinger com sucesso!")
+                        print("Atualizando agenda_base (data/tipo/conteudo último andamento)...")
+                        update_agenda_ultimo_andamento(df_processed)
+                        print("Atualizando agenda_base (métricas operacionais)...")
+                        update_agenda_metricas_operacionais(df_processed)
                     else:
-                        print("Falha ao inserir/atualizar dados no Supabase.")
-                        
+                        print("Falha ao atualizar dados no MySQL Hostinger.")
                 except Exception as e:
-                    print(f"Erro durante processamento: {e}")
-                finally:
-                    await close_connection()
+                    print(f"Erro ao atualizar MySQL Hostinger: {e}")
+                
+                if success:
+                    try:
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            print(f"🗑️ Arquivo baixado removido: {file_path}")
+                    except Exception as e:
+                        print(f"⚠️ Erro ao remover arquivo {file_path}: {e}")
             else:
                 print("Arquivo vazio ou erro no processamento.")
         else:

@@ -13,9 +13,15 @@ import os
 import pandas as pd
 import asyncpg
 from dotenv import load_dotenv
-from supabase import create_client, Client
 import psycopg2
+import asyncpg
 from hostinger_mysql_helper import upsert_agenda_base as upsert_agenda_base_hostinger
+
+try:
+    from supabase import create_client, Client
+except ImportError:
+    create_client = None
+    Client = None  # type: ignore
 
 # Carrega as variáveis de ambiente do arquivo config.env
 load_dotenv('config.env')
@@ -509,7 +515,11 @@ async def insert_data_to_supabase_connection_string(df, table_name):
 async def insert_data_to_supabase_api(df, table_name):
     """
     Insere os dados de um DataFrame do pandas em uma tabela do Supabase usando a API REST.
+    (Não usado no fluxo principal; banco atual = apenas Hostinger.)
     """
+    if create_client is None:
+        print("❌ Supabase não está instalado. Use apenas Hostinger.")
+        return False
     print("🔗 Conectando ao Supabase via API...")
     
     # Credenciais da API do Supabase
@@ -957,16 +967,12 @@ async def run():
             print("Erro FATAL: Campo de senha '#password' ou botão de login final não apareceu/clicável no tempo esperado OU a página após o login não carregou totalmente.")
             await page.screenshot(path="debug_password_field_or_final_button_missing.png", full_page=True)
             print("Navegador mantido aberto para inspeção. Verifique a URL e o conteúdo da página.")
-            if not headless_mode:
-                await asyncio.Event().wait()
             await browser.close()
             return
         except Exception as e:
             print(f"Erro inesperado ao preencher senha ou clicar no botão final: {e}")
             await page.screenshot(path="debug_password_fill_or_final_click_error.png", full_page=True)
             print("Navegador mantido aberto para inspeção. Verifique a URL e o conteúdo da página.")
-            if not headless_mode:
-                await asyncio.Event().wait()
             await browser.close()
             return
 
@@ -1122,112 +1128,62 @@ async def run():
             await browser.close()
             return
 
-        # --- ETAPA 9: PROCESSAR ARQUIVO E INSERIR NO SUPABASE ---
+        # --- ETAPA 9: PROCESSAR ARQUIVO E INSERIR NO MYSQL HOSTINGER ---
         print("\n" + "="*70)
-        print("🔄 PROCESSANDO ARQUIVO BAIXADO E ATUALIZANDO CUMPRIDOS COM PARECER NO SUPABASE")
+        print("🔄 PROCESSANDO ARQUIVO BAIXADO E ATUALIZANDO NO MYSQL HOSTINGER")
         print("="*70)
         
         if file_path:
             print(f"📁 Arquivo baixado: {file_path}")
             
-            # Processar o arquivo Excel
             df_processed = await process_excel_file(file_path)
             
             if df_processed is not None and not df_processed.empty:
-                # Tentar atualizar via psycopg2 primeiro (mais estável)
-                print("🔄 Tentando atualizar dados via psycopg2...")
-                success = update_data_to_supabase_psycopg2(df_processed, "agenda_base")
-                
-                if not success:
-                    print("⚠️ psycopg2 falhou, tentando connection string...")
-                    success = await insert_data_to_supabase_connection_string(df_processed, "agenda_base")
-                
-                if not success:
-                    print("⚠️ Connection string falhou, tentando conexão direta como fallback...")
-                    success = await insert_data_to_supabase(df_processed, "agenda_base")
+                print("🔄 Inserindo/atualizando dados no MySQL Hostinger...")
+                success = False
+                try:
+                    result = upsert_agenda_base_hostinger(df_processed, "agenda_base", "id_legalone")
+                    if result:
+                        success = True
+                        if isinstance(result, tuple) and len(result) == 4:
+                            _, inseridos, atualizados, pulados = result
+                            total = inseridos + atualizados
+                            print("")
+                            print("="*70)
+                            print(f"RESUMO: {total} itens processados (inseridos: {inseridos}, atualizados: {atualizados}, pulados: {pulados})")
+                            print("="*70)
+                        print("✅ Dados atualizados no MySQL Hostinger com sucesso!")
+                    else:
+                        print("⚠️ Falha ao atualizar dados no MySQL Hostinger.")
+                except Exception as e:
+                    print(f"❌ Erro ao atualizar MySQL Hostinger: {e}")
                 
                 if success:
-                    print("✅ Dados de cumpridos com parecer atualizados no Supabase com sucesso!")
-                    
-                    # Atualizar também no MySQL Hostinger (datas tratadas no helper)
-                    print("\n" + "="*70)
-                    print("🔄 ATUALIZANDO DADOS NO MYSQL HOSTINGER")
-                    print("="*70)
-                    try:
-                        result = upsert_agenda_base_hostinger(df_processed, "agenda_base", "id_legalone")
-                        if result:
-                            if isinstance(result, tuple) and len(result) == 4:
-                                _, inseridos, atualizados, pulados = result
-                                total = inseridos + atualizados
-                                print("")
-                                print("="*70)
-                                print(f"RESUMO: {total} itens processados (inseridos: {inseridos}, atualizados: {atualizados}, pulados: {pulados})")
-                                print("="*70)
-                            print("Dados atualizados no MySQL Hostinger com sucesso!")
-                        else:
-                            print("⚠️ Falha ao atualizar dados no MySQL Hostinger (continuando mesmo assim)")
-                    except Exception as e:
-                        print(f"⚠️ Erro ao atualizar MySQL Hostinger: {e}")
-                        print("⚠️ Continuando mesmo assim...")
-                    
-                    # Limpar arquivo baixado após processamento bem-sucedido
                     try:
                         if os.path.exists(file_path):
                             os.remove(file_path)
                             print(f"🗑️ Arquivo baixado removido: {file_path}")
-                        else:
-                            print(f"⚠️ Arquivo não encontrado para remoção: {file_path}")
                     except Exception as e:
                         print(f"⚠️ Erro ao remover arquivo {file_path}: {e}")
-                        
                 else:
-                    print("❌ Falha ao atualizar dados de cumpridos com parecer no Supabase (todas as tentativas falharam).")
                     print("💾 Salvando dados localmente como backup...")
-                    
-                    # Salvar como backup local
                     backup_file = f"backup_atualiza_cumpridos_parecer_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                     backup_path = os.path.join(downloads_dir, backup_file)
                     df_processed.to_excel(backup_path, index=False)
                     print(f"📁 Backup salvo em: {backup_path}")
-                    print("🔄 Dados processados com sucesso, mas não inseridos no Supabase.")
             else:
                 print("❌ Arquivo vazio ou erro no processamento.")
         else:
             print("❌ Nenhum arquivo foi baixado.")
 
-        # --- PARADA AQUI PARA INSPEÇÃO FINAL ---
         print("\n" + "="*70)
-        print("🎯 SCRIPT PARADO APÓS DOWNLOAD DO RELATÓRIO")
+        print("🎯 SCRIPT CONCLUÍDO APÓS DOWNLOAD DO RELATÓRIO")
         print("="*70)
         print("✅ Processo completo realizado com sucesso!")
-        print("🔍 Login, seleção de licença, geração e download do relatório")
         print(f"📍 URL atual: {page.url}")
         if file_path:
             print(f"📁 Arquivo baixado: {file_path}")
-        print("\n📸 Screenshots disponíveis:")
-        print("   - debug_initial_page.png")
-        print("   - debug_after_username_fill.png") 
-        print("   - debug_after_final_login_click.png")
-        print("   - debug_license_selection_page.png")
-        print("   - debug_post_login_page.png")
-        print("   - debug_report_page_loaded.png")
-        print("   - debug_before_generate_click.png")
-        print("   - debug_after_generate_click.png")
-        print("   - debug_after_report_generation.png")
-        print("   - debug_before_download.png")
-        print("\n🔍 INSTRUÇÕES:")
-        print("   1. Inspecione a página atual no navegador")
-        print("   2. Verifique se o relatório foi baixado corretamente")
-        print("   3. Me informe se há mais alguma alteração necessária")
-        print("\n⏸️  Pressione Ctrl+C para parar o script")
         print("="*70)
-        
-        # Manter o navegador aberto para inspeção (apenas em modo local)
-        if not headless_mode:
-            try:
-                await asyncio.Event().wait()
-            except KeyboardInterrupt:
-                print("\n🛑 Script interrompido pelo usuário")
         
         await browser.close()
         return

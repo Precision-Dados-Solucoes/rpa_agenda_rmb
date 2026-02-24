@@ -934,16 +934,12 @@ async def run():
             print("Erro FATAL: Campo de senha '#password' ou botão de login final não apareceu/clicável no tempo esperado OU a página após o login não carregou totalmente.")
             await page.screenshot(path="debug_password_field_or_final_button_missing.png", full_page=True)
             print("Navegador mantido aberto para inspeção. Verifique a URL e o conteúdo da página.")
-            if not headless_mode:
-                await asyncio.Event().wait()
             await browser.close()
             return
         except Exception as e:
             print(f"Erro inesperado ao preencher senha ou clicar no botão final: {e}")
             await page.screenshot(path="debug_password_fill_or_final_click_error.png", full_page=True)
             print("Navegador mantido aberto para inspeção. Verifique a URL e o conteúdo da página.")
-            if not headless_mode:
-                await asyncio.Event().wait()
             await browser.close()
             return
 
@@ -1179,13 +1175,6 @@ async def run():
         print("   3. Me informe se há mais alguma alteração necessária")
         print("\n⏸️  Pressione Ctrl+C para parar o script")
         print("="*70)
-        
-        # Manter o navegador aberto para inspeção (apenas em modo local)
-        if not headless_mode:
-            try:
-                await asyncio.Event().wait()
-            except KeyboardInterrupt:
-                print("\n🛑 Script interrompido pelo usuário")
         
         await browser.close()
         return
