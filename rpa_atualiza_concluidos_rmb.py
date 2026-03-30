@@ -16,12 +16,7 @@ from dotenv import load_dotenv
 import psycopg2
 import asyncpg
 from hostinger_mysql_helper import upsert_agenda_base as upsert_agenda_base_hostinger
-
-try:
-    from supabase import create_client, Client
-except ImportError:
-    create_client = None
-    Client = None  # type: ignore
+from legalone_popup_dismiss import close_any_known_popup
 
 # Carrega as variáveis de ambiente do arquivo config.env
 load_dotenv('config.env')
@@ -33,41 +28,6 @@ downloads_dir = "downloads"
 if not os.path.exists(downloads_dir):
     os.makedirs(downloads_dir)
 print(f"A pasta de downloads será: {os.path.abspath(downloads_dir)}")
-
-async def close_any_known_popup(page):
-    """
-    Tenta fechar popups modais ou overlays usando seletores comuns para botões de fechar.
-    Retorna True se um popup foi encontrado e tentado fechar, False caso contrário.
-    """
-    close_selectors = [
-        '[aria-label="Close"]',          # Botão genérico de fechar (com label ARIA)
-        'button:has-text("Fechar")',     # Botão com texto "Fechar"
-        'button:has-text("OK")',         # Às vezes "OK" fechar um aviso
-        'button.close',                  # Classe comum para botões de fechar
-        '.modal-footer button:has-text("Fechar")', # Botão "Fechar" no rodapé de um modal
-        '.modal-header button.close',    # Botão "Fechar" no cabeçalho de um modal
-        '.popup-close',                  # Classe específica para fechar popups
-        '#close-button',                 # ID comum para um botão de fechar
-        '[role="dialog"] button:has-text("Fechar")' # Botão fechar dentro de um elemento com role="dialog"
-    ]
-
-    print("Tentando fechar popups (se houver)...")
-    for selector in close_selectors:
-        try:
-            element = page.locator(selector)
-            if await element.is_visible(timeout=1000):
-                print(f"  Popup detectado com seletor: {selector}. Tentando fechar...")
-                await element.click(timeout=3000)
-                print(f"  Popup fechado com sucesso usando seletor: {selector}.")
-                await page.wait_for_timeout(500)
-                return True
-        except TimeoutError:
-            pass
-        except Exception as e:
-            print(f"  Erro inesperado ao tentar fechar popup com seletor {selector}: {e}")
-            pass
-    print("Nenhum popup conhecido encontrado ou fechado.")
-    return False
 
 def read_excel_file(file_path):
     """
@@ -109,7 +69,7 @@ async def process_excel_file(file_path):
     print(f"📊 Arquivo lido com sucesso. Linhas: {len(df)}")
     
     try:
-        # 2. Criar DataFrame processado com as colunas do Supabase
+        # 2. Criar DataFrame processado com as colunas da agenda_base (MySQL)
         df_processed = pd.DataFrame()
         
         # Mapeamento direto (sem tratamento)
@@ -128,13 +88,13 @@ async def process_excel_file(file_path):
         }
         
         # Copiar colunas diretas
-        for supabase_col, excel_col in direct_mappings.items():
+        for db_col, excel_col in direct_mappings.items():
             if excel_col in df.columns:
-                df_processed[supabase_col] = df[excel_col]
-                print(f"✅ Coluna '{excel_col}' → '{supabase_col}'")
+                df_processed[db_col] = df[excel_col]
+                print(f"✅ Coluna '{excel_col}' → '{db_col}'")
             else:
                 print(f"⚠️ Coluna '{excel_col}' não encontrada no arquivo")
-                df_processed[supabase_col] = None
+                df_processed[db_col] = None
         
         # 3. Tratamento de campos de data/hora
         print("🔄 Processando campos de data/hora...")
@@ -188,7 +148,7 @@ async def process_excel_file(file_path):
         if 'id_legalone' in df_processed.columns:
             df_processed['id_legalone'] = pd.to_numeric(df_processed['id_legalone'], errors='coerce').astype('Int64')
         
-        # Converter campos numéricos para string (text no Supabase)
+        # Converter campos numéricos para string (text no MySQL)
         text_columns = ['pasta_proc', 'numero_cnj', 'executante', 'executante_sim', 'descricao', 'link', 'status']
         for col in text_columns:
             if col in df_processed.columns:
@@ -266,10 +226,8 @@ def generate_link(id_legalone):
     return f"{base_url}{id_legalone}{params}"
 
 def insert_data_to_supabase_psycopg2(df, table_name):
-    """
-    Insere os dados usando psycopg2 (mais estável para Supabase)
-    """
-    print("🔗 Conectando ao Supabase via psycopg2...")
+    """Desativado. Este RPA usa apenas MySQL Hostinger."""
+    return False
     
     # Variáveis individuais
     user = os.getenv("user") or os.getenv("SUPABASE_USER")
@@ -502,14 +460,8 @@ async def insert_data_to_supabase_connection_string(df, table_name):
         return False
 
 async def insert_data_to_supabase_api(df, table_name):
-    """
-    Insere os dados de um DataFrame do pandas em uma tabela do Supabase usando a API REST.
-    (Não usado no fluxo principal; banco atual = apenas Hostinger.)
-    """
-    if create_client is None:
-        print("❌ Supabase não está instalado. Use apenas Hostinger.")
-        return False
-    print("🔗 Conectando ao Supabase via API...")
+    """Desativado. Este RPA usa apenas MySQL Hostinger."""
+    return False
     
     # Credenciais da API do Supabase
     supabase_url = os.getenv("SUPABASE_URL")
@@ -566,10 +518,8 @@ async def insert_data_to_supabase_api(df, table_name):
         return False
 
 async def insert_data_to_supabase(df, table_name):
-    """
-    Atualiza/Insere dados no Supabase com lógica UPSERT
-    """
-    # Credenciais do Supabase com fallback (como no Novajus)
+    """Desativado. Este RPA usa apenas MySQL Hostinger."""
+    return False
     host = os.getenv("SUPABASE_HOST", "db.dhfmqumwizrwdbjnbcua.supabase.co")
     port = os.getenv("SUPABASE_PORT", "5432")
     database = os.getenv("SUPABASE_DATABASE", "postgres")
@@ -767,14 +717,8 @@ async def insert_data_to_supabase(df, table_name):
                 print(f"⚠️ Erro ao fechar conexão: {e}")
 
 def update_data_to_supabase_psycopg2(df, table_name):
-    """
-    Atualiza/Insere dados no Supabase usando psycopg2 com lógica UPSERT
-    Usa id_legalone como chave para UPDATE/INSERT
-    """
-    print(f"🔄 Atualizando/Inserindo dados na tabela {table_name} via psycopg2 (UPSERT)...")
-    
-    # Credenciais do Supabase
-    host = os.getenv("SUPABASE_HOST", "db.dhfmqumwizrwdbjnbcua.supabase.co")
+    """Desativado. Este RPA usa apenas MySQL Hostinger."""
+    return False
     port = os.getenv("SUPABASE_PORT", "5432")
     database = os.getenv("SUPABASE_DATABASE", "postgres")
     user = os.getenv("SUPABASE_USER", "postgres")
@@ -1181,9 +1125,11 @@ async def run():
         # Todo o código após o login foi removido para permitir inspeção
         # Será restaurado após identificar as alterações necessárias
 
-# --- NOVA FUNÇÃO PARA TESTAR APENAS A INSERÇÃO NO SUPABASE ---
+# --- Função de teste desativada (banco = apenas Hostinger) ---
 async def test_supabase_insertion():
-    print("\n--- INICIANDO TESTE DE INSERÇÃO NO SUPABASE ---")
+    """Desativado. Use apenas MySQL Hostinger."""
+    print("\n--- Teste de inserção Supabase desativado (usar Hostinger) ---")
+    return
 
     # --- ATENÇÃO: Defina o caminho completo para o arquivo Excel/CSV existente ---
     # Exemplo: 'downloads/1. Relatório diário de publicações (51).xlsx'

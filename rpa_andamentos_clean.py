@@ -2,6 +2,8 @@ import asyncio
 from playwright.async_api import async_playwright, TimeoutError
 import os
 
+from legalone_popup_dismiss import close_any_known_popup
+
 # --- Configuracao da pasta de downloads ---
 downloads_dir = "downloads"
 if not os.path.exists(downloads_dir):
@@ -11,41 +13,6 @@ print(f"A pasta de downloads sera: {os.path.abspath(downloads_dir)}")
 # --- Nome do arquivo de andamentos esperado ---
 expected_filename = "z-rpa_andamentos_agenda_rmb_queeue"
 print(f"Nome do arquivo esperado: {expected_filename}")
-
-async def close_any_known_popup(page):
-    """
-    Tenta fechar popups modais ou overlays usando seletores comuns para botoes de fechar.
-    Retorna True se um popup foi encontrado e tentado fechar, False caso contrario.
-    """
-    close_selectors = [
-        '[aria-label="Close"]',          # Botao generico de fechar (com label ARIA)
-        'button:has-text("Fechar")',     # Botao com texto "Fechar"
-        'button:has-text("OK")',         # As vezes "OK" fechar um aviso
-        'button.close',                  # Classe comum para botoes de fechar
-        '.modal-footer button:has-text("Fechar")', # Botao "Fechar" no rodape de um modal
-        '.modal-header button.close',    # Botao "Fechar" no cabecalho de um modal
-        '.popup-close',                  # Classe especifica para fechar popups
-        '#close-button',                 # ID comum para um botao de fechar
-        '[role="dialog"] button:has-text("Fechar")' # Botao fechar dentro de um elemento com role="dialog"
-    ]
-
-    print("Tentando fechar popups (se houver)...")
-    for selector in close_selectors:
-        try:
-            element = page.locator(selector)
-            if await element.is_visible(timeout=1000):
-                print(f"  Popup detectado com seletor: {selector}. Tentando fechar...")
-                await element.click(timeout=3000)
-                print(f"  Popup fechado com sucesso usando seletor: {selector}.")
-                await page.wait_for_timeout(500)
-                return True
-        except TimeoutError:
-            pass
-        except Exception as e:
-            print(f"  Erro inesperado ao tentar fechar popup com seletor {selector}: {e}")
-            pass
-    print("Nenhum popup conhecido encontrado ou fechado.")
-    return False
 
 async def run():
     async with async_playwright() as p:
@@ -177,7 +144,8 @@ async def run():
         print("Selecionando a licenca usando current-value...")
         try:
             # Valor especifico da licenca (robertomatos - cleiton.sanches)
-            license_specific_value = "64ee2867d98cf01183cb12fc83a1b95d"
+            # ATUALIZADO: current-value mudou para 321230142ac9f01183ce12fc83a1b95d
+            license_specific_value = "321230142ac9f01183ce12fc83a1b95d"
             
             # Seletor para o saf-radio com o current-value especifico
             license_selector = f'saf-radio[current-value="{license_specific_value}"] >> input[part="control"]'

@@ -5,6 +5,7 @@ import pandas as pd
 import asyncpg
 from dotenv import load_dotenv
 from hostinger_mysql_helper import upsert_agenda_base as upsert_agenda_base_hostinger
+from legalone_popup_dismiss import close_any_known_popup
 
 # --- INSTALAÇÃO DE BIBLIOTECAS (rode estes comandos no seu terminal se ainda não o fez): ---
 # pip install pandas
@@ -24,100 +25,6 @@ downloads_dir = "downloads"
 if not os.path.exists(downloads_dir):
     os.makedirs(downloads_dir)
 print(f"A pasta de downloads será: {os.path.abspath(downloads_dir)}")
-
-async def close_any_known_popup(page):
-    """
-    Tenta fechar popups/modais que travam o processo.
-    Usa múltiplos seletores, tecla Escape e clique no backdrop; repete até não encontrar mais popup.
-    """
-    # Seletores de botões de fechar (ordem: mais comuns primeiro)
-    close_selectors = [
-        '[aria-label="Close"]',
-        '[aria-label="Fechar"]',
-        'button:has-text("Fechar")',
-        'button:has-text("OK")',
-        'button:has-text("Entendi")',
-        'button:has-text("Continuar")',
-        'button:has-text("×")',
-        'button.close',
-        '.btn-close',
-        '[data-dismiss="modal"]',
-        '[data-bs-dismiss="modal"]',
-        '.modal-header button.close',
-        '.modal-header .btn-close',
-        '.modal-footer button:has-text("Fechar")',
-        '.modal-footer button:has-text("OK")',
-        '.popup-close',
-        '#close-button',
-        '[role="dialog"] button:has-text("Fechar")',
-        '.modal-dialog button.close',
-        'a.close',
-        '.fechar',
-        'button[title="Fechar"]',
-        '[title="Fechar"]',
-    ]
-    # Backdrop – clicar fora do modal às vezes fecha
-    backdrop_selectors = [
-        '.modal-backdrop',
-        '.modal-backdrop.show',
-        '[class*="overlay"]',
-        '.dialog-overlay',
-    ]
-
-    closed_any = False
-    max_rounds = 5  # Várias rodadas para popups que aparecem após animação
-
-    for round_num in range(max_rounds):
-        found = False
-        # 1) Tecla Escape (fecha muitos modais)
-        try:
-            await page.keyboard.press("Escape")
-            await page.wait_for_timeout(300)
-        except Exception:
-            pass
-
-        # 2) Botões de fechar
-        for selector in close_selectors:
-            try:
-                loc = page.locator(selector).first
-                if await loc.is_visible(timeout=800):
-                    print(f"  Popup: fechando com seletor '{selector}'...")
-                    await loc.click(timeout=3000)
-                    await page.wait_for_timeout(500)
-                    closed_any = True
-                    found = True
-                    break
-            except TimeoutError:
-                pass
-            except Exception as e:
-                print(f"  Erro ao clicar em '{selector}': {e}")
-        if found:
-            continue
-
-        # 3) Clique no backdrop (pode fechar o modal)
-        for selector in backdrop_selectors:
-            try:
-                loc = page.locator(selector).first
-                if await loc.is_visible(timeout=500):
-                    print(f"  Popup: clicando no backdrop '{selector}'...")
-                    await loc.click(timeout=2000)
-                    await page.wait_for_timeout(500)
-                    closed_any = True
-                    found = True
-                    break
-            except TimeoutError:
-                pass
-            except Exception:
-                pass
-        if not found:
-            break
-        await page.wait_for_timeout(400)
-
-    if closed_any:
-        print("  Popup(s) fechado(s).")
-    else:
-        print("  Nenhum popup conhecido encontrado ou fechado.")
-    return closed_any
 
 def read_excel_file(file_path):
     """
@@ -159,7 +66,7 @@ async def process_excel_file(file_path):
     print(f"📊 Arquivo lido com sucesso. Linhas: {len(df)}")
     
     try:
-        # 2. Criar DataFrame processado com as colunas do Supabase
+        # 2. Criar DataFrame processado com as colunas da agenda_base (MySQL)
         df_processed = pd.DataFrame()
         
         # Mapeamento direto (sem tratamento)
@@ -189,25 +96,25 @@ async def process_excel_file(file_path):
         }
         
         # Copiar colunas diretas
-        for supabase_col, excel_col in direct_mappings.items():
+        for db_col, excel_col in direct_mappings.items():
             if excel_col in df.columns:
-                df_processed[supabase_col] = df[excel_col]
-                print(f"✅ Coluna '{excel_col}' → '{supabase_col}'")
-            elif supabase_col in column_variations:
-                possible_names = column_variations[supabase_col]
+                df_processed[db_col] = df[excel_col]
+                print(f"✅ Coluna '{excel_col}' → '{db_col}'")
+            elif db_col in column_variations:
+                possible_names = column_variations[db_col]
                 found = False
                 for name in possible_names:
                     if name in df.columns:
-                        df_processed[supabase_col] = df[name]
-                        print(f"✅ Coluna '{name}' → '{supabase_col}'")
+                        df_processed[db_col] = df[name]
+                        print(f"✅ Coluna '{name}' → '{db_col}'")
                         found = True
                         break
                 if not found:
                     print(f"⚠️ Coluna '{excel_col}' não encontrada no arquivo (tentou variações)")
-                    df_processed[supabase_col] = None
+                    df_processed[db_col] = None
             else:
                 print(f"⚠️ Coluna '{excel_col}' não encontrada no arquivo")
-                df_processed[supabase_col] = None
+                df_processed[db_col] = None
         
         # 3. Tratamento de campos de data/hora
         print("🔄 Processando campos de data/hora...")
@@ -261,7 +168,7 @@ async def process_excel_file(file_path):
         if 'id_legalone' in df_processed.columns:
             df_processed['id_legalone'] = pd.to_numeric(df_processed['id_legalone'], errors='coerce').astype('Int64')
         
-        # Converter campos numéricos para string (text no Supabase)
+        # Converter campos numéricos para string (text no MySQL)
         text_columns = ['pasta_proc', 'numero_cnj', 'executante', 'executante_sim', 'descricao', 'link', 'status', 'cliente-processo', 'contrario-processo']
         for col in text_columns:
             if col in df_processed.columns:
@@ -339,10 +246,8 @@ def generate_link(id_legalone):
     return f"{base_url}{id_legalone}{params}"
 
 def insert_data_to_supabase_psycopg2(df, table_name):
-    """
-    Insere os dados usando psycopg2 (mais estável para Supabase)
-    """
-    print("🔗 Conectando ao Supabase via psycopg2...")
+    """Desativado. Este RPA usa apenas MySQL Hostinger."""
+    return False
     
     # Variáveis individuais
     user = os.getenv("user") or os.getenv("SUPABASE_USER")
@@ -477,10 +382,8 @@ def insert_data_to_supabase_psycopg2(df, table_name):
         return False
 
 async def insert_data_to_supabase_connection_string(df, table_name):
-    """
-    Insere os dados usando connection string completa com sslmode=require
-    """
-    print("🔗 Conectando ao Supabase via connection string...")
+    """Desativado. Este RPA usa apenas MySQL Hostinger."""
+    return False
     
     # Connection string completa
     database_url = os.getenv("DATABASE_URL")
@@ -602,10 +505,8 @@ async def insert_data_to_supabase_connection_string(df, table_name):
         return False
 
 async def insert_data_to_supabase_api(df, table_name):
-    """
-    Insere os dados de um DataFrame do pandas em uma tabela do Supabase usando a API REST.
-    """
-    print("🔗 Conectando ao Supabase via API...")
+    """Desativado. Este RPA usa apenas MySQL Hostinger."""
+    return False
     
     # Credenciais da API do Supabase
     supabase_url = os.getenv("SUPABASE_URL")
@@ -677,10 +578,8 @@ async def insert_data_to_supabase_api(df, table_name):
         return False
 
 async def insert_data_to_supabase(df, table_name):
-    """
-    Insere os dados de um DataFrame do pandas em uma tabela do Supabase.
-    """
-    # Credenciais do Supabase com fallback (como no Novajus)
+    """Desativado. Este RPA usa apenas MySQL Hostinger."""
+    return False
     host = os.getenv("SUPABASE_HOST", "db.dhfmqumwizrwdbjnbcua.supabase.co")
     port = os.getenv("SUPABASE_PORT", "5432")
     database = os.getenv("SUPABASE_DATABASE", "postgres")
@@ -1226,7 +1125,9 @@ async def run():
 
 # --- NOVA FUNÇÃO PARA TESTAR APENAS A INSERÇÃO NO SUPABASE ---
 async def test_supabase_insertion():
-    print("\n--- INICIANDO TESTE DE INSERÇÃO NO SUPABASE ---")
+    """Desativado. Use apenas MySQL Hostinger."""
+    print("\n--- Teste de inserção Supabase desativado (usar Hostinger) ---")
+    return
 
     # --- ATENÇÃO: Defina o caminho completo para o arquivo Excel/CSV existente ---
     # Exemplo: 'downloads/1. Relatório diário de publicações (51).xlsx'

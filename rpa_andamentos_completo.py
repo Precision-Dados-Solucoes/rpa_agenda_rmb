@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
 RPA Completo para Andamentos - Download + Processamento + UPSERT
-Integra download do relatório com processamento e inserção no Supabase
+Integra download do relatório com processamento e inserção no MySQL Hostinger (andamento_base + agenda_base).
 """
 
 import asyncio
 from playwright.async_api import async_playwright, TimeoutError
 import os
 import pandas as pd
-import asyncpg
 from dotenv import load_dotenv
 from datetime import datetime
 from hostinger_mysql_helper import (
@@ -16,6 +15,7 @@ from hostinger_mysql_helper import (
     update_agenda_ultimo_andamento,
     update_agenda_metricas_operacionais,
 )
+from legalone_popup_dismiss import close_any_known_popup
 
 # Carrega as variáveis de ambiente
 load_dotenv('config.env')
@@ -29,38 +29,6 @@ print(f"A pasta de downloads sera: {os.path.abspath(downloads_dir)}")
 # --- Nome do arquivo de andamentos esperado ---
 expected_filename = "z-rpa_andamentos_agenda_rmb_queeue"
 print(f"Nome do arquivo esperado: {expected_filename}")
-
-async def close_any_known_popup(page):
-    """Tenta fechar popups modais ou overlays usando seletores comuns para botões de fechar."""
-    close_selectors = [
-        '[aria-label="Close"]',
-        'button:has-text("Fechar")',
-        'button:has-text("OK")',
-        'button.close',
-        '.modal-footer button:has-text("Fechar")',
-        '.modal-header button.close',
-        '.popup-close',
-        '#close-button',
-        '[role="dialog"] button:has-text("Fechar")'
-    ]
-
-    print("Tentando fechar popups (se houver)...")
-    for selector in close_selectors:
-        try:
-            element = page.locator(selector)
-            if await element.is_visible(timeout=1000):
-                print(f"  Popup detectado com seletor: {selector}. Tentando fechar...")
-                await element.click(timeout=3000)
-                print(f"  Popup fechado com sucesso usando seletor: {selector}.")
-                await page.wait_for_timeout(500)
-                return True
-        except TimeoutError:
-            pass
-        except Exception as e:
-            print(f"  Erro inesperado ao tentar fechar popup com seletor {selector}: {e}")
-            pass
-    print("Nenhum popup conhecido encontrado ou fechado.")
-    return False
 
 def extract_date_from_datetime(datetime_str):
     """Extrai a data de uma string no formato dd/mm/aaaa hh:mm:ss e converte para objeto date"""
@@ -88,7 +56,7 @@ async def process_excel_file(file_path):
         return None
     
     try:
-        # Criar DataFrame processado com as colunas do Supabase
+        # Criar DataFrame processado com as colunas do banco (andamento_base)
         df_processed = pd.DataFrame()
         
         # Mapeamento direto (sem tratamento)
@@ -101,13 +69,13 @@ async def process_excel_file(file_path):
         }
         
         # Copiar colunas diretas
-        for supabase_col, excel_col in direct_mappings.items():
+        for db_col, excel_col in direct_mappings.items():
             if excel_col in df.columns:
-                df_processed[supabase_col] = df[excel_col]
-                print(f"Coluna '{excel_col}' -> '{supabase_col}'")
+                df_processed[db_col] = df[excel_col]
+                print(f"Coluna '{excel_col}' -> '{db_col}'")
             else:
                 print(f"Coluna '{excel_col}' nao encontrada no arquivo")
-                df_processed[supabase_col] = None
+                df_processed[db_col] = None
         
         # Tratamento especial para campo 'cadastro_andamento'
         print("Processando campo 'cadastro_andamento'...")
@@ -149,171 +117,6 @@ async def process_excel_file(file_path):
     except Exception as e:
         print(f"Erro durante o processamento: {e}")
         return None
-
-# Variáveis globais para conexão
-conn = None
-
-async def connect_to_database():
-    """Conecta ao banco de dados Supabase"""
-    global conn
-    
-    # Credenciais do Supabase
-    host = os.getenv("SUPABASE_HOST", "db.dhfmqumwizrwdbjnbcua.supabase.co")
-    port = os.getenv("SUPABASE_PORT", "5432")
-    database = os.getenv("SUPABASE_DATABASE", "postgres")
-    user = os.getenv("SUPABASE_USER", "postgres")
-    password = os.getenv("SUPABASE_PASSWORD", "PDS2025@@")
-
-    print(f"Conectando ao Supabase: {host}:{port}/{database}")
-    print(f"Usuario: {user}")
-    
-    try:
-        conn = await asyncpg.connect(
-            user=user, 
-            password=password,
-            host=host, 
-            port=int(port), 
-            database=database,
-            command_timeout=30,
-            statement_cache_size=0,
-            server_settings={
-                'application_name': 'rpa_andamentos_rmb',
-                'tcp_keepalives_idle': '60',
-                'tcp_keepalives_interval': '10',
-                'tcp_keepalives_count': '3',
-                'statement_timeout': '60000',
-                'idle_in_transaction_session_timeout': '60000'
-            }
-        )
-        print("Conexao com o Supabase estabelecida com sucesso!")
-        
-        # Teste de conectividade
-        version = await conn.fetchval("SELECT version()")
-        print(f"Versao do PostgreSQL: {version[:50]}...")
-        
-        return True
-        
-    except Exception as e:
-        print(f"Erro na conexao: {e}")
-        return False
-
-async def process_dataframe_with_upsert(df, table_name):
-    """Processa DataFrame com sistema UPSERT"""
-    global conn
-    
-    try:
-        print(f"Processando {len(df)} registros com UPSERT...")
-        
-        # Verificar se a tabela existe
-        table_exists = await conn.fetchval("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = $1
-            )
-        """, table_name)
-        
-        if not table_exists:
-            print(f"ERRO: Tabela '{table_name}' nao existe no Supabase!")
-            return False
-        
-        print(f"Tabela '{table_name}' encontrada!")
-        
-        # Contar registros existentes
-        count_before = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
-        print(f"Registros existentes na tabela: {count_before}")
-        
-        # Processar cada registro com UPSERT
-        updated_count = 0
-        inserted_count = 0
-        
-        for index, row in df.iterrows():
-            try:
-                # Verificar se o registro ja existe
-                existing_record = await conn.fetchrow("""
-                    SELECT id_andamento_legalone FROM {} WHERE id_andamento_legalone = $1
-                """.format(table_name), row['id_andamento_legalone'])
-                
-                if existing_record:
-                    # ATUALIZAR registro existente
-                    await conn.execute("""
-                        UPDATE {} SET 
-                            id_agenda_legalone = $1,
-                            tipo_andamento = $2,
-                            subtipo_andamento = $3,
-                            descricao_andamento = $4,
-                            cadastro_andamento = $5
-                        WHERE id_andamento_legalone = $6
-                    """.format(table_name), 
-                        row['id_agenda_legalone'],
-                        row['tipo_andamento'],
-                        row['subtipo_andamento'],
-                        row['descricao_andamento'],
-                        row['cadastro_andamento'],
-                        row['id_andamento_legalone']
-                    )
-                    updated_count += 1
-                    print(f"Registro atualizado: id_andamento_legalone = {row['id_andamento_legalone']}")
-                else:
-                    # INSERIR novo registro
-                    await conn.execute("""
-                        INSERT INTO {} (
-                            id_agenda_legalone, 
-                            id_andamento_legalone, 
-                            tipo_andamento, 
-                            subtipo_andamento, 
-                            descricao_andamento, 
-                            cadastro_andamento
-                        ) VALUES ($1, $2, $3, $4, $5, $6)
-                    """.format(table_name),
-                        row['id_agenda_legalone'],
-                        row['id_andamento_legalone'],
-                        row['tipo_andamento'],
-                        row['subtipo_andamento'],
-                        row['descricao_andamento'],
-                        row['cadastro_andamento']
-                    )
-                    inserted_count += 1
-                    print(f"Registro inserido: id_andamento_legalone = {row['id_andamento_legalone']}")
-                    
-            except Exception as e:
-                print(f"Erro ao processar registro {index}: {e}")
-                continue
-        
-        # Verificar resultado final
-        count_after = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
-        
-        print(f"\nUPSERT CONCLUIDO:")
-        print(f"Registros atualizados: {updated_count}")
-        print(f"Registros inseridos: {inserted_count}")
-        print(f"Total processados: {updated_count + inserted_count}")
-        print(f"Registros na tabela: {count_before} -> {count_after}")
-        
-        return True
-        
-    except Exception as e:
-        print(f"Erro durante UPSERT: {e}")
-        return False
-
-async def close_connection():
-    """Fecha a conexão com o banco"""
-    global conn
-    if conn:
-        try:
-            # Tenta fechar a conexão com timeout
-            await asyncio.wait_for(conn.close(), timeout=5.0)
-            print("Conexao fechada com sucesso!")
-        except asyncio.TimeoutError:
-            print("⚠️ Timeout ao fechar conexão - forçando fechamento")
-            # Força o fechamento da conexão sem aguardar
-            try:
-                conn.terminate()
-                print("Conexao forçada a fechar com sucesso!")
-            except Exception as e:
-                print(f"⚠️ Erro ao forçar fechamento: {e}")
-        except Exception as e:
-            print(f"⚠️ Erro ao fechar conexão: {e}")
-        finally:
-            conn = None
 
 async def run():
     """Executa o RPA completo: download + processamento + UPSERT"""

@@ -12,6 +12,7 @@ import pandas as pd
 from playwright.async_api import async_playwright, TimeoutError
 from dotenv import load_dotenv
 from hostinger_mysql_helper import insert_processos_base
+from legalone_popup_dismiss import close_any_known_popup
 
 load_dotenv("config.env")
 
@@ -78,19 +79,6 @@ def process_excel_processos_novos(file_path):
     return df
 
 
-async def close_any_known_popup(page):
-    for selector in ['[aria-label="Close"]', 'button:has-text("Fechar")', 'button:has-text("OK")']:
-        try:
-            el = page.locator(selector)
-            if await el.is_visible(timeout=1000):
-                await el.click(timeout=3000)
-                await page.wait_for_timeout(500)
-                return True
-        except Exception:
-            pass
-    return False
-
-
 async def run():
     async with async_playwright() as p:
         headless_mode = os.getenv("HEADLESS", "true").lower() == "true"
@@ -103,8 +91,8 @@ async def run():
         context = await browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36")
         page = await context.new_page()
 
-        USERNAME = os.getenv("NOVAJUS_USERNAME", "cleiton.sanches@precisionsolucoes.com")
-        PASSWORD = os.getenv("NOVAJUS_PASSWORD", "PDS2025@")
+        USERNAME = os.getenv("NOVAJUS_USERNAME", "rpa.icscore@ics-core.com")
+        PASSWORD = os.getenv("NOVAJUS_PASSWORD", "Pds2025@@")
         novajus_login_url = "https://login.novajus.com.br/conta/login"
 
         try:
@@ -139,20 +127,9 @@ async def run():
 
         await close_any_known_popup(page)
         await page.wait_for_timeout(3000)
-
-        try:
-            license_value = "64ee2867d98cf01183cb12fc83a1b95d"
-            license_selector = f'saf-radio[current-value="{license_value}"] >> input[part="control"]'
-            await page.wait_for_selector(license_selector, state='visible', timeout=30000)
-            await page.click(license_selector)
-            await page.wait_for_selector('saf-button.PersonaSelectionPage-button[type="submit"]', state='visible', timeout=30000)
-            await page.click('saf-button.PersonaSelectionPage-button[type="submit"]')
-            await page.wait_for_load_state("networkidle", timeout=60000)
-            await page.wait_for_timeout(3000)
-        except Exception as e:
-            print(f"Erro ao selecionar licença: {e}")
-            await browser.close()
-            return
+        # Conta rpa.icscore@ics-core.com vai direto para a home, sem tela de licença
+        await page.wait_for_load_state("networkidle", timeout=60000)
+        await page.wait_for_timeout(3000)
 
         await close_any_known_popup(page)
         print(f"Navegando para relatório Processos Novos: {REPORT_URL}")
@@ -163,6 +140,8 @@ async def run():
             print(f"Erro ao abrir relatório: {e}")
             await browser.close()
             return
+
+        await close_any_known_popup(page)
 
         try:
             await page.wait_for_selector('button[name="ButtonSave"][type="submit"]', state='visible', timeout=30000)
